@@ -8,7 +8,8 @@ No accounts, no network, no settings.
 
 1. **Double-tap Right Option (⌥)** → Jispr starts listening. A small pill at the bottom of the screen shows *Listening* with a level meter.
 2. Speak.
-3. **Press Escape** (or double-tap Right Option again) → Jispr stops and pastes the text where your cursor is.
+3. **Tap Right Option once** → Jispr stops and pastes the text where your cursor is.
+4. **Escape** → abort. Nothing is pasted.
 
 While Jispr is listening, Escape is swallowed so the front app never sees it.
 The menu bar icon (a microphone) fills while a session is active. That is the whole UI.

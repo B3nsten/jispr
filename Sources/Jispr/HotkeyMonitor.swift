@@ -5,7 +5,10 @@ import Foundation
 /// Runs on the main thread (the tap's run loop source is added to the main run loop).
 @MainActor
 final class HotkeyMonitor {
-    /// Fired after two quick taps of the right Option key.
+    /// Fired on every clean single tap of the right Option key.
+    /// Return true to consume it; a consumed tap does not count toward a double tap.
+    var onTapRightOption: (() -> Bool)?
+    /// Fired after two quick taps of the right Option key (when the first was not consumed).
     var onDoubleTapRightOption: (() -> Void)?
     /// Fired on Escape. Return true to swallow the key so the front app never sees it.
     var onEscape: (() -> Bool)?
@@ -93,6 +96,10 @@ final class HotkeyMonitor {
                 let downTime = optionDownTime
                 optionDownTime = nil
                 guard let downTime, !otherKeyDuringHold, now - downTime <= maxTapDuration else {
+                    lastTapTime = 0
+                    return pass
+                }
+                if onTapRightOption?() == true {
                     lastTapTime = 0
                     return pass
                 }

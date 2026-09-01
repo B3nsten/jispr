@@ -12,7 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setUpStatusItem()
 
         controller.onStateChange = { [weak self] _ in self?.updateIcon() }
-        hotkeys.onDoubleTapRightOption = { [weak self] in self?.controller.toggle() }
+        hotkeys.onDoubleTapRightOption = { [weak self] in self?.controller.handleDoubleTap() }
+        hotkeys.onTapRightOption = { [weak self] in self?.controller.handleOptionTap() ?? false }
         hotkeys.onEscape = { [weak self] in self?.controller.handleEscape() ?? false }
 
         startHotkeysWhenTrusted()
@@ -52,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.toolTip = "Jispr"
 
         let menu = NSMenu()
-        let hint = NSMenuItem(title: "Double-tap Right ⌥ to dictate · Esc to stop", action: nil, keyEquivalent: "")
+        let hint = NSMenuItem(title: "Double-tap Right ⌥ to dictate · tap ⌥ to paste · Esc to abort", action: nil, keyEquivalent: "")
         hint.isEnabled = false
         menu.addItem(hint)
         menu.addItem(.separator())

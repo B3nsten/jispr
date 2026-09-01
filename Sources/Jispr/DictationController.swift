@@ -2,6 +2,11 @@ import AppKit
 import Foundation
 
 /// State machine: idle -> preparing -> listening -> finishing -> idle.
+///
+/// Keys:
+/// - double-tap Right Option: start
+/// - single tap Right Option while running: stop and paste
+/// - Escape while running: abort, nothing is pasted
 @MainActor
 final class DictationController {
     enum State: Equatable { case idle, preparing, listening, finishing }
@@ -23,20 +28,24 @@ final class DictationController {
         Task { await transcriber.prewarmIfInstalled() }
     }
 
-    /// Double tap of right Option: start when idle, finish when listening.
-    func toggle() {
+    /// Double tap of right Option: start when idle.
+    func handleDoubleTap() {
+        if state == .idle { start() }
+    }
+
+    /// Single tap of right Option. Returns true when Jispr used the tap.
+    func handleOptionTap() -> Bool {
         switch state {
-        case .idle: start()
-        case .listening: finish()
-        case .preparing, .finishing: break
+        case .idle: return false
+        case .listening: finish(); return true
+        case .preparing, .finishing: return true
         }
     }
 
-    /// Escape. Returns true when Jispr used the key (and it must not reach the front app).
+    /// Escape: abort without pasting. Returns true when the key must not reach the front app.
     func handleEscape() -> Bool {
         switch state {
-        case .listening: finish(); return true
-        case .preparing: cancel(); return true
+        case .listening, .preparing: abort(); return true
         case .idle, .finishing: return false
         }
     }
@@ -71,6 +80,7 @@ final class DictationController {
                 Log.app.info("Dictation listening")
             } catch is CancellationError {
                 await transcriber.cancel()
+                await transcriber.prewarmIfInstalled()
             } catch {
                 Log.app.error("Dictation failed to start: \(String(describing: error), privacy: .public)")
                 await transcriber.cancel()
@@ -81,6 +91,7 @@ final class DictationController {
         }
     }
 
+    /// Stop listening, finalize, paste.
     private func finish() {
         guard state == .listening else { return }
         state = .finishing
@@ -108,14 +119,23 @@ final class DictationController {
         }
     }
 
-    private func cancel() {
-        Log.app.info("Dictation cancelled")
+    /// Stop listening and throw the audio away. Nothing is pasted.
+    private func abort() {
+        Log.app.info("Dictation aborted")
+        let wasStarting = startTask != nil
         startTask?.cancel()
         audio.stop()
         feedTask?.cancel()
         feedTask = nil
         indicator.hide()
         state = .idle
+        if !wasStarting {
+            // Already listening: the start task is gone, so clean up here.
+            Task { [self] in
+                await transcriber.cancel()
+                await transcriber.prewarmIfInstalled()
+            }
+        }
     }
 
     private func showError(_ message: String) {
