@@ -37,7 +37,7 @@ If the English speech model is not on your Mac yet, Jispr downloads it on first 
 ## Notes
 
 - The app is **ad-hoc signed** by default. macOS ties the Accessibility grant to the binary, so after a rebuild the hotkey may stop working. Fix: remove Jispr from the Accessibility list and add it again. To avoid this, sign with a real certificate: `make bundle SIGN_IDENTITY="Apple Development: Your Name (TEAMID)"`.
-- Logs: `log stream --level info --predicate 'subsystem == "io.github.b3nsten.jispr"'`
+- Logs: `/usr/bin/log stream --level info --predicate 'subsystem == "io.github.b3nsten.jispr"'`
 - Dev helper: `build/Jispr.app/Contents/MacOS/Jispr --transcribe some.aiff` prints the transcript of an audio file. Handy to test the speech pipeline without a microphone (`say -o test.aiff "hello"`).
 
 ## Layout
