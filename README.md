@@ -1,8 +1,7 @@
 # Jispr
 
 A tiny [Wispr Flow](https://wisprflow.ai)-style dictation app for macOS 26.
-English only. Fully on-device, using Apple's `SpeechAnalyzer` / `SpeechTranscriber` (the same model as macOS dictation).
-No accounts, no network, no settings.
+English only. Fully on-device. No accounts, no cloud, almost no settings.
 
 ## How it works
 
@@ -13,6 +12,17 @@ No accounts, no network, no settings.
 
 While Jispr is listening, Escape is swallowed so the front app never sees it.
 The menu bar icon (a microphone) fills while a session is active. That is the whole UI.
+
+## Speech engines
+
+Pick one in the menu bar under **Engine**. Default is Parakeet.
+
+| Engine | What it is | Model |
+|---|---|---|
+| **Parakeet** (default) | NVIDIA Parakeet TDT 0.6B v2, English. Better with unusual words. Run on CoreML by [FluidAudio](https://github.com/FluidInference/FluidAudio). | Downloaded once from Hugging Face ([`FluidInference/parakeet-tdt-0.6b-v2-coreml`](https://huggingface.co/FluidInference/parakeet-tdt-0.6b-v2-coreml)) to `~/Library/Application Support/FluidAudio/Models/` (about 450 MB). The pill shows the progress. |
+| **Apple Speech** | Apple's `SpeechAnalyzer` built into macOS 26. | System model, shared with macOS dictation. |
+
+Parakeet transcribes the whole recording when you stop, so long dictations take a moment longer to paste. Apple Speech streams while you talk.
 
 ## Requirements
 
@@ -39,7 +49,7 @@ If the English speech model is not on your Mac yet, Jispr downloads it on first 
 
 - **Signing.** macOS ties the Accessibility grant to the app signature. Run `make cert` once: it creates a self-signed certificate *Jispr Local Signing* in your login keychain (macOS asks for your password). The Makefile picks it up automatically, so the grant survives rebuilds. Without it the app is ad-hoc signed, and you must remove and re-add Jispr in Accessibility after every rebuild. You can also pass your own: `make bundle SIGN_IDENTITY="Apple Development: Your Name (TEAMID)"`.
 - Logs: `/usr/bin/log stream --level info --predicate 'subsystem == "io.github.b3nsten.jispr"'`
-- Dev helper: `build/Jispr.app/Contents/MacOS/Jispr --transcribe some.aiff` prints the transcript of an audio file. Handy to test the speech pipeline without a microphone (`say -o test.aiff "hello"`).
+- Dev helper: `build/Jispr.app/Contents/MacOS/Jispr --transcribe some.aiff [parakeet|apple]` prints the transcript of an audio file. Handy to test the speech pipeline without a microphone (`say -o test.aiff "hello"`).
 
 ## Layout
 
@@ -49,7 +59,9 @@ Sources/Jispr/
   AppDelegate.swift        menu bar item, permission polling
   HotkeyMonitor.swift      CGEventTap: double-tap Right Option, Escape
   DictationController.swift  idle → preparing → listening → finishing
-  Transcriber.swift        SpeechAnalyzer session, model download, prewarm
+  SpeechEngine.swift       engine protocol, engine choice (UserDefaults), text tidy
+  ParakeetEngine.swift     Parakeet v2 via FluidAudio, batch at the end
+  AppleSpeechEngine.swift  SpeechAnalyzer session, streaming, model download
   AudioCapture.swift       AVAudioEngine mic tap + level meter
   BufferConverter.swift    resample mic audio to the model's format
   TextInserter.swift       pasteboard + synthetic ⌘V, restores old clipboard

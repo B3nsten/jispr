@@ -3,7 +3,7 @@ import Foundation
 import Speech
 
 /// Thread-safe sink that converts buffers and feeds them to a running analyzer.
-final class AnalyzerFeeder {
+final class AnalyzerFeeder: AudioSink {
     private let builder: AsyncStream<AnalyzerInput>.Continuation
     private let format: AVAudioFormat
     private let converter = BufferConverter()
@@ -25,9 +25,10 @@ final class AnalyzerFeeder {
     func finish() { builder.finish() }
 }
 
-/// One-shot English transcription session on top of Apple's on-device SpeechAnalyzer (macOS 26).
+/// Apple's on-device SpeechAnalyzer (macOS 26). Streams audio in and finalizes at the end.
 @MainActor
-final class Transcriber {
+final class AppleSpeechEngine: SpeechEngine {
+    let kind: EngineKind = .apple
     static let locale = Locale(identifier: "en-US")
 
     enum Failure: LocalizedError {
@@ -52,8 +53,6 @@ final class Transcriber {
         let format: AVAudioFormat
     }
 
-    typealias ProgressHandler = @Sendable (Double) -> Void
-
     private var prepareTask: Task<Prepared, Error>?
     private var analyzer: SpeechAnalyzer?
     private var feeder: AnalyzerFeeder?
@@ -68,15 +67,14 @@ final class Transcriber {
         return await AssetInventory.status(forModules: [module])
     }
 
-    /// Loads the model in the background so the first dictation starts fast.
-    /// Only does work when the model is already installed (no silent download).
-    func prewarmIfInstalled() async {
+    /// Loads the model in the background. Only when it is already installed (no silent download).
+    func prewarm() async {
         guard prepareTask == nil, analyzer == nil else { return }
         guard await Self.modelStatus() == .installed else { return }
         prepareTask = Task { try await Self.prepare(onProgress: nil) }
     }
 
-    private static func prepare(onProgress: ProgressHandler?) async throws -> Prepared {
+    private static func prepare(onProgress: ModelProgressHandler?) async throws -> Prepared {
         guard SpeechTranscriber.isAvailable else { throw Failure.notAvailable }
         let module = SpeechTranscriber(
             locale: locale,
@@ -94,7 +92,7 @@ final class Transcriber {
         return Prepared(module: module, analyzer: analyzer, format: format)
     }
 
-    private static func ensureModel(for module: SpeechTranscriber, onProgress: ProgressHandler?) async throws {
+    private static func ensureModel(for module: SpeechTranscriber, onProgress: ModelProgressHandler?) async throws {
         let wanted = locale.identifier(.bcp47)
         let supported = await SpeechTranscriber.supportedLocales
         guard supported.contains(where: { $0.identifier(.bcp47) == wanted }) else {
@@ -116,7 +114,7 @@ final class Transcriber {
     // MARK: Session
 
     /// Starts a session. Returns the feeder to push microphone buffers into.
-    func start(onModelProgress: ProgressHandler? = nil) async throws -> AnalyzerFeeder {
+    func start(onModelProgress: ModelProgressHandler?) async throws -> AudioSink {
         if analyzer != nil { await cancel() }
 
         let task = prepareTask ?? Task { try await Self.prepare(onProgress: onModelProgress) }
@@ -155,7 +153,7 @@ final class Transcriber {
         try await analyzer.finalizeAndFinishThroughEndOfInput()
         let raw = try await resultsTask.value
         reset()
-        let text = Self.tidy(raw)
+        let text = TextTidy.tidy(raw)
         Log.speech.info("Session finished: \(text.count, privacy: .public) chars")
         return text
     }
@@ -174,10 +172,4 @@ final class Transcriber {
         resultsTask = nil
     }
 
-    static func tidy(_ text: String) -> String {
-        let collapsed = text
-            .replacingOccurrences(of: "[ \\t]+", with: " ", options: .regularExpression)
-            .replacingOccurrences(of: " ([.,!?;:])", with: "$1", options: .regularExpression)
-        return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }

@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hotkeys = HotkeyMonitor()
     private var trustTimer: Timer?
     private let accessibilityItem = NSMenuItem()
+    private var engineItems: [NSMenuItem] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
@@ -58,6 +59,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(hint)
         menu.addItem(.separator())
 
+        let engineMenu = NSMenu()
+        for kind in EngineKind.allCases {
+            let item = NSMenuItem(title: kind.title, action: #selector(selectEngine(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = kind.rawValue
+            engineMenu.addItem(item)
+            engineItems.append(item)
+        }
+        let engineItem = NSMenuItem(title: "Engine", action: nil, keyEquivalent: "")
+        engineItem.submenu = engineMenu
+        menu.addItem(engineItem)
+
         accessibilityItem.target = self
         accessibilityItem.action = #selector(openAccessibility)
         menu.addItem(accessibilityItem)
@@ -72,6 +85,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateMenu() {
+        for item in engineItems {
+            item.state = (item.representedObject as? String) == EngineKind.selected.rawValue ? .on : .off
+        }
         if hotkeys.isRunning {
             accessibilityItem.title = "Accessibility: granted"
         } else {
@@ -88,6 +104,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let image = NSImage(systemSymbolName: name, accessibilityDescription: "Jispr")
         image?.isTemplate = true
         return image
+    }
+
+    @objc private func selectEngine(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let kind = EngineKind(rawValue: raw) else { return }
+        EngineKind.selected = kind
+        updateMenu()
+        controller.engineSelectionChanged()
     }
 
     @objc private func openAccessibility() {

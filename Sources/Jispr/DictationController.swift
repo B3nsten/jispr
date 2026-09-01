@@ -16,7 +16,7 @@ final class DictationController {
     }
     var onStateChange: ((State) -> Void)?
 
-    private let transcriber = Transcriber()
+    private var engine: SpeechEngine
     private let audio = AudioCapture()
     private let indicator = IndicatorPanel()
     private var startTask: Task<Void, Never>?
@@ -24,8 +24,10 @@ final class DictationController {
     private var errorTask: Task<Void, Never>?
 
     init() {
+        engine = EngineKind.selected.makeEngine()
         audio.onLevel = { [weak self] level in self?.indicator.update(level: level) }
-        Task { await transcriber.prewarmIfInstalled() }
+        Log.app.info("Engine: \(self.engine.kind.rawValue, privacy: .public)")
+        Task { await engine.prewarm() }
     }
 
     /// Double tap of right Option: start when idle.
@@ -50,11 +52,28 @@ final class DictationController {
         }
     }
 
+    /// The user picked another engine in the menu. Applied now when idle, else at the next start.
+    func engineSelectionChanged() {
+        guard state == .idle else { return }
+        switchEngineIfNeeded()
+    }
+
     // MARK: - Private
+
+    private func switchEngineIfNeeded() {
+        let wanted = EngineKind.selected
+        guard wanted != engine.kind else { return }
+        let old = engine
+        Task { await old.cancel() }
+        engine = wanted.makeEngine()
+        Log.app.info("Engine switched to \(wanted.rawValue, privacy: .public)")
+        Task { await engine.prewarm() }
+    }
 
     private func start() {
         guard startTask == nil else { return }
         errorTask?.cancel()
+        switchEngineIfNeeded()
         state = .preparing
         indicator.show(.preparing(progress: nil))
         Log.app.info("Dictation starting")
@@ -64,26 +83,27 @@ final class DictationController {
             do {
                 guard await Permissions.requestMicrophone() else { throw JisprError.microphoneDenied }
                 try Task.checkCancellation()
-                let feeder = try await transcriber.start { [weak self] progress in
+                let sink = try await engine.start { [weak self] progress in
                     Task { @MainActor in
                         guard let self, self.state == .preparing else { return }
-                        self.indicator.model.phase = .preparing(progress: progress)
+                        // Past the download, the model is being loaded: no number to show.
+                        self.indicator.model.phase = .preparing(progress: progress < 0.999 ? progress : nil)
                     }
                 }
                 try Task.checkCancellation()
                 let stream = try audio.start()
                 feedTask = Task.detached(priority: .userInitiated) {
-                    for await buffer in stream { feeder.feed(buffer) }
+                    for await buffer in stream { sink.feed(buffer) }
                 }
                 state = .listening
                 indicator.model.phase = .listening
                 Log.app.info("Dictation listening")
             } catch is CancellationError {
-                await transcriber.cancel()
-                await transcriber.prewarmIfInstalled()
+                await engine.cancel()
+                await engine.prewarm()
             } catch {
                 Log.app.error("Dictation failed to start: \(String(describing: error), privacy: .public)")
-                await transcriber.cancel()
+                await engine.cancel()
                 audio.stop()
                 state = .idle
                 showError(error.localizedDescription)
@@ -104,7 +124,7 @@ final class DictationController {
             feedTask = nil
             var text = ""
             do {
-                text = try await transcriber.finish()
+                text = try await engine.finish()
             } catch {
                 Log.app.error("Finalize failed: \(String(describing: error), privacy: .public)")
             }
@@ -115,7 +135,7 @@ final class DictationController {
             } else {
                 await TextInserter.insert(text)
             }
-            Task { await transcriber.prewarmIfInstalled() }
+            Task { await engine.prewarm() }
         }
     }
 
@@ -132,8 +152,8 @@ final class DictationController {
         if !wasStarting {
             // Already listening: the start task is gone, so clean up here.
             Task { [self] in
-                await transcriber.cancel()
-                await transcriber.prewarmIfInstalled()
+                await engine.cancel()
+                await engine.prewarm()
             }
         }
     }
