@@ -3,11 +3,12 @@ CONFIG     ?= release
 BUILD_DIR  := build
 APP        := $(BUILD_DIR)/$(APP_NAME).app
 BIN        := .build/$(CONFIG)/$(APP_NAME)
-# Ad-hoc signing by default. Set SIGN_IDENTITY to a real certificate to keep
-# Accessibility permission across rebuilds.
-SIGN_IDENTITY ?= -
+CERT_NAME  := Jispr Local Signing
+# Use the local self-signed certificate when it exists (see: make cert),
+# otherwise sign ad-hoc. Override with SIGN_IDENTITY=... if you have a real one.
+SIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | grep -q '"$(CERT_NAME)"' && echo "$(CERT_NAME)" || echo "-")
 
-.PHONY: build bundle run install clean
+.PHONY: build bundle run install cert clean
 
 build:
 	swift build -c $(CONFIG)
@@ -19,7 +20,7 @@ bundle: build
 	cp Resources/Info.plist "$(APP)/Contents/Info.plist"
 	printf "APPL????" > "$(APP)/Contents/PkgInfo"
 	codesign --force --sign "$(SIGN_IDENTITY)" "$(APP)"
-	@echo "Built $(APP)"
+	@echo "Built $(APP) (signed with: $(SIGN_IDENTITY))"
 
 run: bundle
 	-pkill -x $(APP_NAME)
@@ -30,6 +31,10 @@ install: bundle
 	rm -rf "/Applications/$(APP_NAME).app"
 	cp -R "$(APP)" /Applications/
 	@echo "Installed /Applications/$(APP_NAME).app"
+
+# One-time: create a local self-signed signing certificate.
+cert:
+	sh scripts/make-signing-cert.sh "$(CERT_NAME)"
 
 clean:
 	rm -rf .build "$(BUILD_DIR)"
