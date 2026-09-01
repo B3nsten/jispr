@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import JisprCore
 import Speech
 
 /// Thread-safe sink that converts buffers and feeds them to a running analyzer.
@@ -153,7 +154,7 @@ final class AppleSpeechEngine: SpeechEngine {
         try await analyzer.finalizeAndFinishThroughEndOfInput()
         let raw = try await resultsTask.value
         reset()
-        let text = TextTidy.tidy(raw)
+        let text = TextCleanup.clean(raw)
         Log.speech.info("Session finished: \(text.count, privacy: .public) chars")
         return text
     }

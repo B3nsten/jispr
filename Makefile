@@ -8,7 +8,7 @@ CERT_NAME  := Jispr Local Signing
 # otherwise sign ad-hoc. Override with SIGN_IDENTITY=... if you have a real one.
 SIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | grep -q '"$(CERT_NAME)"' && echo "$(CERT_NAME)" || echo "-")
 
-.PHONY: build bundle run install cert clean
+.PHONY: build bundle run install cert check clean
 
 build:
 	swift build -c $(CONFIG)
@@ -31,6 +31,10 @@ install: bundle
 	rm -rf "/Applications/$(APP_NAME).app"
 	cp -R "$(APP)" /Applications/
 	@echo "Installed /Applications/$(APP_NAME).app"
+
+# Run the JisprCore checks.
+check:
+	swift run -c $(CONFIG) JisprCoreChecks
 
 # One-time: create a local self-signed signing certificate.
 cert:

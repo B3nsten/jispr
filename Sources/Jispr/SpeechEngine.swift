@@ -53,11 +53,11 @@ enum EngineKind: String, CaseIterable {
     }
 }
 
-enum TextTidy {
-    static func tidy(_ text: String) -> String {
-        text
-            .replacingOccurrences(of: "[ \\t]+", with: " ", options: .regularExpression)
-            .replacingOccurrences(of: " ([.,!?;:])", with: "$1", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+/// Small user settings read from UserDefaults.
+enum Settings {
+    /// Extra words to keep in capitals with Parakeet:
+    /// `defaults write io.github.b3nsten.jispr keepCaps -array WWDC FOOBAR`
+    static var keepCaps: Set<String> {
+        Set((UserDefaults.standard.stringArray(forKey: "keepCaps") ?? []).map { $0.uppercased() })
     }
 }

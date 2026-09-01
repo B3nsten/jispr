@@ -1,6 +1,7 @@
 import AVFoundation
 import FluidAudio
 import Foundation
+import JisprCore
 
 /// Collects 16 kHz mono samples while a session runs.
 final class SampleAccumulator: AudioSink {
@@ -108,7 +109,7 @@ final class ParakeetEngine: SpeechEngine {
         let started = Date()
         var state = TdtDecoderState.make()
         let result = try await manager.transcribe(samples, decoderState: &state)
-        let text = TextTidy.tidy(result.text)
+        let text = TextCleanup.clean(result.text, normalizeAllCaps: true, keepCaps: Settings.keepCaps)
         let took = Date().timeIntervalSince(started)
         Log.speech.info("Parakeet: \(seconds, format: .fixed(precision: 1), privacy: .public) s audio in \(took, format: .fixed(precision: 2), privacy: .public) s, \(text.count, privacy: .public) chars")
         return text

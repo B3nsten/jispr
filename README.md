@@ -24,6 +24,20 @@ Pick one in the menu bar under **Engine**. Default is Parakeet.
 
 Parakeet transcribes the whole recording when you stop, so long dictations take a moment longer to paste. Apple Speech streams while you talk.
 
+## Text clean-up
+
+Every transcript goes through a small, deterministic clean-up before it is pasted (`Sources/JisprCore/TextCleanup.swift`, checked by `make check`):
+
+- capital letter at the start and after `. ! ?`
+- "i" becomes "I" (also "i'm", "i'll", ...)
+- no space before punctuation, one space after `, ; : ! ?`
+- a final period when the text ends in a letter or digit
+- Parakeet only: shouted words such as `JISPR` become names (`Jispr`). Known acronyms (NASA, HTML, ...) and words of three letters or fewer (AI, USB) stay. Add your own with:
+
+```sh
+defaults write io.github.b3nsten.jispr keepCaps -array WWDC FOOBAR
+```
+
 ## Requirements
 
 - macOS 26 (Tahoe) on Apple silicon
