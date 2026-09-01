@@ -7,7 +7,7 @@ English only. Fully on-device. No accounts, no cloud, almost no settings.
 
 1. **Double-tap Right Option (⌥)** → Jispr starts listening. A small pill at the bottom of the screen shows *Listening* with a level meter.
 2. Speak.
-3. **Tap Right Option once** → Jispr stops and pastes the text where your cursor is.
+3. **Tap Right Option once** → Jispr stops and pastes the text where your cursor is, followed by one space, so the next dictation does not stick to it.
 4. **Escape** → abort. Nothing is pasted.
 
 While Jispr is listening, Escape is swallowed so the front app never sees it.

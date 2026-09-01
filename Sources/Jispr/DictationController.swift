@@ -133,7 +133,8 @@ final class DictationController {
             if text.isEmpty {
                 Log.app.info("Nothing transcribed")
             } else {
-                await TextInserter.insert(text)
+                // Trailing space: the next dictation must not stick to this one.
+                await TextInserter.insert(text + " ")
             }
             Task { await engine.prewarm() }
         }
