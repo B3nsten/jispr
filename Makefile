@@ -24,10 +24,12 @@ bundle: build
 
 run: bundle
 	-pkill -x $(APP_NAME)
+	@i=0; while pgrep -x $(APP_NAME) >/dev/null && [ $$i -lt 50 ]; do sleep 0.1; i=$$((i+1)); done
 	open "$(APP)"
 
 install: bundle
 	-pkill -x $(APP_NAME)
+	@i=0; while pgrep -x $(APP_NAME) >/dev/null && [ $$i -lt 50 ]; do sleep 0.1; i=$$((i+1)); done
 	rm -rf "/Applications/$(APP_NAME).app"
 	cp -R "$(APP)" /Applications/
 	@echo "Installed /Applications/$(APP_NAME).app"
