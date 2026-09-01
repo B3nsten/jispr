@@ -52,6 +52,17 @@ check(clean("NASA uses HTML and AI on a USB stick", caps: true), "NASA uses HTML
 check(clean("ARM64 and MP3", caps: true), "ARM64 and MP3.")
 check(clean("built with FOOBAR", caps: true, keep: ["FOOBAR"]), "Built with FOOBAR.")
 
+// Break commands
+check(clean("hello there. new paragraph. this is the second part"), "Hello there.\n\nThis is the second part.")
+check(clean("hello there, new paragraph this is the second part"), "Hello there.\n\nThis is the second part.", "comma before the command becomes a period")
+check(clean("first line, new line second line"), "First line.\nSecond line.")
+check(clean("Hello. New Line. Bye"), "Hello.\nBye.", "any case")
+check(clean("I started a new paragraph in the essay"), "I started a new paragraph in the essay.", "inside a sentence: words stay")
+check(clean("new lines are great"), "New lines are great.", "plural is not a command")
+check(clean("new paragraph hello"), "\n\nHello.", "command at the start")
+check(clean("done. new paragraph"), "Done.\n\n", "command at the end: no period added")
+check(clean("one. new paragraph new paragraph two"), "One.\n\n\nTwo.", "repeated command")
+
 // Real Parakeet output
 check(
     clean("Hello, this is a test of the JISPR dictation app, it should insert this text where the cursor is", caps: true),

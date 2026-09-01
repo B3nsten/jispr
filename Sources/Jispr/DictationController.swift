@@ -134,7 +134,8 @@ final class DictationController {
                 Log.app.info("Nothing transcribed")
             } else {
                 // Trailing space: the next dictation must not stick to this one.
-                await TextInserter.insert(text + " ")
+                // Not after a break: the next dictation starts on the new line.
+                await TextInserter.insert(text.hasSuffix("\n") ? text : text + " ")
             }
             Task { await engine.prewarm() }
         }

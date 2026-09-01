@@ -9,9 +9,13 @@ import Foundation
 /// 3. The pronoun "i" becomes "I" (also "i'm", "i'll", ...).
 /// 4. Optional: shouted words (4+ capital letters, e.g. "JISPR") become names ("Jispr"),
 ///    unless they are known acronyms or in the caller's keep list.
-/// 5. Capital letter at the start and after `. ! ?` (not after abbreviations like "U.S." or "e.g.").
-/// 6. A final period when the text ends in a letter or digit (placed after closing quotes
-///    and brackets). A trailing `, ; :` becomes a period.
+/// 5. Voice commands: "new paragraph" (empty line) and "new line" (single break), only when
+///    they follow a pause (`. , ! ? ; :`), a break, or start the text. Inside a running
+///    sentence ("I started a new paragraph in the essay") the words stay.
+/// 6. Capital letter at the start, after `. ! ?` (not after abbreviations like "U.S."), and
+///    after a break.
+/// 7. A final period when the text ends in a letter or digit (placed after closing quotes
+///    and brackets). A trailing `, ; :` becomes a period. Text ending in a break is left alone.
 public enum TextCleanup {
     /// Acronyms and brands that stay in capitals when `normalizeAllCaps` is on.
     /// Words of three letters or fewer (AI, API, USB, ...) are never touched.
@@ -35,6 +39,7 @@ public enum TextCleanup {
         if normalizeAllCaps {
             text = lowerShoutedWords(text, keep: defaultKeepCaps.union(keepCaps))
         }
+        text = applyBreakCommands(text)
         text = capitalizeSentences(text)
         text = ensureFinalPunctuation(text)
         return text
@@ -68,13 +73,40 @@ public enum TextCleanup {
         }
     }
 
+    /// "new paragraph" / "new line" after a pause, a break, or at the start become breaks.
+    static func applyBreakCommands(_ s: String) -> String {
+        // Repeat so that "new paragraph new paragraph" works (the second one follows a break).
+        var text = s
+        for _ in 0..<8 {
+            let next = replaceBreakCommandsOnce(text)
+            if next == text { break }
+            text = next
+        }
+        return text
+    }
+
+    private static func replaceBreakCommandsOnce(_ s: String) -> String {
+        let pattern = #/(^|[.,!?;:]|\n) *(?i:new (paragraph|line))\b[.,!?;:]? */#
+            .wordBoundaryKind(.simple)
+        return s.replacing(pattern) { match in
+            let before = String(match.1)
+            let isParagraph = match.2.lowercased() == "paragraph"
+            let breakText = isParagraph ? "\n\n" : "\n"
+            switch before {
+            case "\n": return breakText          // the earlier break stays; no lead needed
+            case ",", ";", ":": return "." + breakText
+            default: return before + breakText   // "" at start, or . ! ?
+            }
+        }
+    }
+
     static func capitalizeSentences(_ s: String) -> String {
         var t = s
         if let first = t.first, first.isLowercase {
             t = first.uppercased() + t.dropFirst()
         }
         // word + end mark (+ optional closer) + spaces + lowercase letter
-        return t.replacing(#/(\S+)([.!?]["')\]]?) +([a-z])/#) { match in
+        t = t.replacing(#/(\S+)([.!?]["')\]]?) +([a-z])/#) { match in
             let word = match.1
             let mark = match.2
             let letter = match.3
@@ -83,6 +115,9 @@ public enum TextCleanup {
                 && word.wholeMatch(of: #/(?:[A-Za-z]\.)*[A-Za-z]/#) != nil
             return "\(word)\(mark) \(isAbbreviation ? String(letter) : letter.uppercased())"
         }
+        // After a break
+        t = t.replacing(#/(\n+)([a-z])/#) { "\($0.1)\($0.2.uppercased())" }
+        return t
     }
 
     static func ensureFinalPunctuation(_ s: String) -> String {

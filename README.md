@@ -32,6 +32,7 @@ Every transcript goes through a small, deterministic clean-up before it is paste
 - "i" becomes "I" (also "i'm", "i'll", ...)
 - no space before punctuation, one space after `, ; : ! ?`
 - a final period when the text ends in a letter or digit
+- Voice commands: say **"new paragraph"** (empty line) or **"new line"** (single break) after a short pause. The pause shows up as punctuation, and that is what makes it a command. Inside a running sentence ("I started a new paragraph in the essay") the words stay words. If you said the command without a pause, it stays as text. Nothing is lost.
 - Parakeet only: shouted words such as `JISPR` become names (`Jispr`). Known acronyms (NASA, HTML, ...) and words of three letters or fewer (AI, USB) stay. Add your own with:
 
 ```sh
