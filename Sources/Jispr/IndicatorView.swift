@@ -11,6 +11,7 @@ final class IndicatorModel {
         case finishing
         case transcribing(String)
         case saved(String)
+        case mode(Mode)
         case error(String)
     }
 
@@ -48,6 +49,9 @@ struct IndicatorView: View {
             case .saved(let name):
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                 Text("Saved \(name)")
+            case .mode(let mode):
+                Image(systemName: mode == .record ? "record.circle.fill" : "mic.fill")
+                Text(mode.title)
             case .error(let message):
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
                 Text(message)

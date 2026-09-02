@@ -16,10 +16,13 @@ enum Mode: String, CaseIterable {
 
     var hint: String {
         switch self {
-        case .dictate: return "Double-tap Right ⌥ to dictate · tap ⌥ to paste · Esc to abort"
-        case .record: return "Double-tap Right ⌥ to record · tap ⌥ to save · Esc to abort"
+        case .dictate: return "Double-tap Right ⌥ to dictate · tap ⌥ to paste · Esc to abort · triple-tap ⌥ to record"
+        case .record: return "Double-tap Right ⌥ to record · tap ⌥ to save · Esc to abort · triple-tap ⌥ to dictate"
         }
     }
+
+    /// The other mode.
+    var other: Mode { self == .dictate ? .record : .dictate }
 
     private static let defaultsKey = "mode"
 

@@ -2,7 +2,7 @@ import AppKit
 import UniformTypeIdentifiers
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     private var statusItem: NSStatusItem?
     private let controller = DictationController()
     private let hotkeys = HotkeyMonitor()
@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         controller.onStateChange = { [weak self] _ in self?.updateIcon() }
         hotkeys.onDoubleTapRightOption = { [weak self] in self?.controller.handleDoubleTap() }
+        hotkeys.onTripleTapRightOption = { [weak self] in self?.controller.handleTripleTap() }
         hotkeys.onTapRightOption = { [weak self] in self?.controller.handleOptionTap() ?? false }
         hotkeys.onEscape = { [weak self] in self?.controller.handleEscape() ?? false }
 
@@ -57,6 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         item.button?.toolTip = "Jispr"
 
         let menu = NSMenu()
+        menu.delegate = self
         hintItem.isEnabled = false
         menu.addItem(hintItem)
         menu.addItem(.separator())
@@ -115,6 +117,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         } else {
             accessibilityItem.title = "Accessibility: not granted – open settings…"
         }
+    }
+
+    /// The mode can change by hotkey, so refresh the checkmarks every time the menu opens.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        updateMenu()
     }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {

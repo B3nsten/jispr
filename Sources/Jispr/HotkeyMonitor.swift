@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// Global keyboard tap. Detects a double tap of the right Option key and the Escape key.
+/// Global keyboard tap. Detects single, double and triple taps of the right Option key, and Escape.
 /// Runs on the main thread (the tap's run loop source is added to the main run loop).
 @MainActor
 final class HotkeyMonitor {
@@ -10,6 +10,8 @@ final class HotkeyMonitor {
     var onTapRightOption: (() -> Bool)?
     /// Fired after two quick taps of the right Option key (when the first was not consumed).
     var onDoubleTapRightOption: (() -> Void)?
+    /// Fired on a third quick tap right after a double tap (instead of `onTapRightOption`).
+    var onTripleTapRightOption: (() -> Void)?
     /// Fired on Escape. Return true to swallow the key so the front app never sees it.
     var onEscape: (() -> Bool)?
 
@@ -28,6 +30,7 @@ final class HotkeyMonitor {
     private var optionDownTime: TimeInterval?
     private var otherKeyDuringHold = false
     private var lastTapTime: TimeInterval = 0
+    private var lastDoubleTapTime: TimeInterval = 0
 
     var isRunning: Bool { tap != nil }
 
@@ -97,6 +100,13 @@ final class HotkeyMonitor {
                 optionDownTime = nil
                 guard let downTime, !otherKeyDuringHold, now - downTime <= maxTapDuration else {
                     lastTapTime = 0
+                    lastDoubleTapTime = 0
+                    return pass
+                }
+                if now - lastDoubleTapTime <= maxDoubleTapInterval {
+                    lastDoubleTapTime = 0
+                    Log.hotkey.debug("Triple tap of right Option")
+                    onTripleTapRightOption?()
                     return pass
                 }
                 if onTapRightOption?() == true {
@@ -105,6 +115,7 @@ final class HotkeyMonitor {
                 }
                 if now - lastTapTime <= maxDoubleTapInterval {
                     lastTapTime = 0
+                    lastDoubleTapTime = now
                     Log.hotkey.debug("Double tap of right Option")
                     onDoubleTapRightOption?()
                 } else {
@@ -118,6 +129,7 @@ final class HotkeyMonitor {
             // Any real key press breaks a pending Option tap sequence.
             otherKeyDuringHold = true
             lastTapTime = 0
+            lastDoubleTapTime = 0
             if keyCode == Self.escapeKeyCode, onEscape?() == true {
                 return nil  // swallow
             }
@@ -132,5 +144,6 @@ final class HotkeyMonitor {
         optionDownTime = nil
         otherKeyDuringHold = false
         lastTapTime = 0
+        lastDoubleTapTime = 0
     }
 }

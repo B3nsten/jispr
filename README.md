@@ -9,13 +9,14 @@ English only. Fully on-device. No accounts, no cloud, almost no settings.
 2. Speak.
 3. **Tap Right Option once** → Jispr stops and pastes the text where your cursor is, followed by one space, so the next dictation does not stick to it.
 4. **Escape** → abort. Nothing is pasted.
+5. **Triple-tap Right Option** → switch between dictating and recording to a file (see below). The pill shows the new mode.
 
 While Jispr is listening, Escape is swallowed so the front app never sees it.
 The menu bar icon (a microphone) fills while a session is active. That is almost the whole UI.
 
 ## Recording a meeting
 
-Pick **Mode → Record to file** in the menu bar. The same keys now record instead of dictate:
+Pick **Mode → Record to file** in the menu bar, or triple-tap Right Option. The same keys now record instead of dictate:
 
 1. **Double-tap Right Option** → recording starts. The pill shows *Recording* with a level meter and a clock. The menu bar icon becomes a record dot.
 2. **Tap Right Option once** → the recording is saved to `~/Downloads/meeting_<seconds>_YYMMDD_HHMM.m4a`, e.g. `meeting_1788442330_260902_1432.m4a`. The number is the exact save time in seconds since 1970 (for calculations); the rest is the local date and 24-hour time (for you). A name clash gets `-2`. AAC, small enough for hours.
@@ -35,7 +36,7 @@ Recorded 2026-09-02, 14:02–14:32
 
 The clock comes from the file name: the seconds give the exact save time, so the start is that minus the length of the audio. The local part of the name tells the time zone of the recording, so the times are shown as they were there, never UTC, even when you transcribe the file somewhere else. Older `meeting_YYMMDD_HHMM` names still work (the minute, plus the seconds from the file's "last changed" time). Other files get times counted from the start of the file, like `[0:41]`. Two limits: the clock assumes the audio ran without gaps, so a microphone drop-out or a sleeping Mac in the middle shifts the times; and a recording across a summer-time switch is one hour off before the switch. Whoever speaks first is Person 1. Names are not known. With one speaker you get plain text. The speaker models ([`FluidInference/speaker-diarization-coreml`](https://huggingface.co/FluidInference/speaker-diarization-coreml), 21 MB, pyannote community-1 + WeSpeaker) are downloaded once on the first run. Limits: similar voices can be mixed up, and people talking over each other confuse it. Apple Speech gets the `Recorded` line but no speaker labels.
 
-**Mode → Dictate (paste text)** switches back.
+**Mode → Dictate (paste text)** or another triple tap switches back.
 
 ## Speech engines
 
@@ -96,7 +97,7 @@ If the English speech model is not on your Mac yet, Jispr downloads it on first 
 Sources/Jispr/
   JisprMain.swift          entry point (app or --transcribe)
   AppDelegate.swift        menu bar item, permission polling
-  HotkeyMonitor.swift      CGEventTap: double-tap Right Option, Escape
+  HotkeyMonitor.swift      CGEventTap: single, double and triple tap of Right Option, Escape
   DictationController.swift  idle → preparing → listening | recording → finishing; file transcription
   Recording.swift          Mode (dictate / record), AAC file writer, Downloads naming
   FileTranscription.swift  feed a whole audio file into an engine (menu action and --transcribe)

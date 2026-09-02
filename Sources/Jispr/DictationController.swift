@@ -7,6 +7,7 @@ import JisprCore
 /// Keys (see `Mode`):
 /// - double-tap Right Option: start dictating, or start recording to a file
 /// - single tap Right Option while running: stop; paste the text, or save the file
+/// - triple-tap Right Option: switch the mode (the start from the double tap is thrown away)
 /// - Escape while running: abort, nothing is pasted or saved
 ///
 /// The menu can also transcribe an audio file (`transcribing`). Keys are ignored meanwhile.
@@ -52,6 +53,19 @@ final class DictationController {
         case .recording: finishRecording(); return true
         case .preparing, .finishing: return true
         }
+    }
+
+    /// Triple tap of right Option: switch between dictating and recording.
+    /// The double tap just before it started a session; that one is thrown away.
+    func handleTripleTap() {
+        switch state {
+        case .preparing, .listening, .recording: abort()
+        case .idle, .finishing, .transcribing: break
+        }
+        let mode = Mode.selected.other
+        Mode.selected = mode
+        Log.app.info("Mode switched to \(mode.rawValue, privacy: .public)")
+        if state == .idle { showNotice(.mode(mode), for: 1.5) }
     }
 
     /// Escape: abort without pasting or saving. Returns true when the key must not reach the front app.
@@ -309,10 +323,11 @@ final class DictationController {
     }
 
     /// Shows a short message in the pill, then hides it.
-    private func showNotice(_ phase: IndicatorModel.Phase) {
+    private func showNotice(_ phase: IndicatorModel.Phase, for seconds: Double = 3) {
+        noticeTask?.cancel()
         indicator.show(phase)
         noticeTask = Task { [self] in
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .seconds(seconds))
             guard !Task.isCancelled, state == .idle else { return }
             indicator.hide()
         }
