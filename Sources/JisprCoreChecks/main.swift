@@ -91,6 +91,8 @@ func saved(_ name: String, modified: Date? = nil, zone: TimeZone = berlin) -> St
 }
 check(saved("meeting_\(epoch)_260902_1432"), "\(epoch) 2h", "exact second, zone of the recording (CEST)")
 check(saved("meeting_\(epoch)_260902_1432-2"), "\(epoch) 2h", "suffix is fine")
+check(saved("meeting_\(epoch)_260902_1432-recovered"), "\(epoch) 2h", "recovered files too")
+check(saved("meeting_\(epoch)_260902_1432-recovered-2"), "\(epoch) 2h")
 check(saved("meeting_\(epoch)_260902_0832", zone: newYork), "\(epoch) -4h", "recorded in New York")
 check(saved("meeting_\(epoch)_260902_0832", zone: berlin), "\(epoch) -4h", "read in Berlin: still New York time")
 check(saved("meeting_\(epoch)_260902_1432", modified: afternoon.addingTimeInterval(3600)), "\(epoch) 2h", "file time is ignored when the seconds are in the name")

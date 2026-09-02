@@ -45,6 +45,15 @@ final class DictationController {
         indicator.model.keep = { [weak self] in self?.keepRecording() }
         Log.app.info("Engine: \(self.engine.kind.rawValue, privacy: .public)")
         Task { await engine.prewarm() }
+        Task { await recoverRecordings() }
+    }
+
+    /// Recordings cut short by a crash: save what there is, and say so.
+    private func recoverRecordings() async {
+        let saved = await RecordingRecovery.recover()
+        guard let last = saved.last else { return }
+        if state == .idle { showNotice(.saved(last.lastPathComponent), for: 6) }
+        NSWorkspace.shared.activateFileViewerSelecting(saved)
     }
 
     /// Double tap of right Option: start when idle. What starts depends on the mode.
@@ -248,7 +257,7 @@ final class DictationController {
             do {
                 guard await Permissions.requestMicrophone() else { throw JisprError.microphoneDenied }
                 try Task.checkCancellation()
-                let writer = try RecordingWriter(url: Recordings.scratchURL(), format: audio.inputFormat)
+                let writer = try RecordingWriter(directory: RecordingRecovery.directory(startingAt: Date()), format: audio.inputFormat)
                 recording = writer
                 try startCapture(into: writer)
                 state = .recording
@@ -256,7 +265,7 @@ final class DictationController {
                 indicator.model.elapsed = 0
                 indicator.model.phase = .recording
                 startClock()
-                Log.app.info("Recording to \(writer.url.path, privacy: .public)")
+                Log.app.info("Recording to \(writer.directory.path, privacy: .public)")
             } catch is CancellationError {
                 // Aborted before the file was made: nothing to clean up.
             } catch {
@@ -270,7 +279,7 @@ final class DictationController {
         }
     }
 
-    /// Stop recording and save the file as `~/Downloads/meeting_<seconds>_YYMMDD_HHMM.m4a`.
+    /// Stop recording, join the chunks and save `~/Downloads/meeting_<seconds>_YYMMDD_HHMM.m4a`.
     private func finishRecording() {
         guard state == .recording, let writer = recording else { return }
         state = .finishing
@@ -285,12 +294,13 @@ final class DictationController {
             feedTask = nil
             recording = nil
             do {
-                let seconds = try writer.close()
+                let (chunks, seconds) = try writer.close()
                 let url = Recordings.freeURL(
                     in: Recordings.downloads,
                     base: FileNaming.meetingName(at: Date()), ext: RecordingWriter.fileExtension
                 )
-                try FileManager.default.moveItem(at: writer.url, to: url)
+                try await RecordingJoiner.join(chunks, to: url)
+                try? FileManager.default.removeItem(at: writer.directory)
                 Log.app.info("Saved \(url.path, privacy: .public) (\(seconds, format: .fixed(precision: 1), privacy: .public) s)")
                 state = .idle
                 showNotice(.saved(url.lastPathComponent))

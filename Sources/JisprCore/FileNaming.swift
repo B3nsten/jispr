@@ -22,7 +22,7 @@ public enum FileNaming {
         }
     }
 
-    /// Reads the saved time back from a `meeting_…` name (suffixes like `-2` are fine). Nil for other names.
+    /// Reads the saved time back from a `meeting_…` name (suffixes like `-2` or `-recovered` are fine). Nil for other names.
     ///
     /// - `meeting_1788442330_260902_1432`: the seconds give the exact moment. The local part tells the
     ///   time zone of the recording, so the transcript shows the clock as it was there, never UTC.
@@ -30,7 +30,7 @@ public enum FileNaming {
     /// - `meeting_260902_1432` (older files): the minute, in `timeZone`. The file's "last changed" time
     ///   adds the seconds when it falls inside that minute (a copied file may be way off).
     public static func savedTime(name: String, modified: Date?, timeZone: TimeZone = .current) -> SavedTime? {
-        guard let match = name.wholeMatch(of: #/meeting_(?:(\d{9,})_)?(\d{6}_\d{4})(?:-\d+)?/#) else { return nil }
+        guard let match = name.wholeMatch(of: #/meeting_(?:(\d{9,})_)?(\d{6}_\d{4})(?:-\w+)*/#) else { return nil }
         let local = String(match.2)
 
         if let secondsText = match.1 {

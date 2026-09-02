@@ -20,6 +20,8 @@ Pick **Mode → Record to file** in the menu bar, or triple-tap Right Option. Th
 
 1. **Double-tap Right Option** → recording starts. The pill shows *Recording* with a level meter and a clock. The menu bar icon becomes a record dot.
 2. **Tap Right Option once** → the recording is saved to `~/Downloads/meeting_<seconds>_YYMMDD_HHMM.m4a`, e.g. `meeting_1788442330_260902_1432.m4a`. The number is the exact save time in seconds since 1970 (for calculations); the rest is the local date and 24-hour time (for you). A name clash gets `-2`. AAC, small enough for hours.
+
+   While you record, the audio goes to lossless 5-minute chunks in `~/Library/Application Support/Jispr/recordings/` (about 200 MB per hour, gone after the save), because an m4a is readable only once it is closed. On save, the chunks are decoded in order and encoded once into the AAC file. If Jispr crashes or the Mac loses power, at most 5 minutes are lost: at the next launch the chunks are joined and saved as `meeting_…-recovered.m4a` in Downloads, and Finder shows it. When the Mac sleeps or the microphone changes, the recording goes on afterwards, with a gap.
 3. **Escape** → abort. The file is thrown away. After one minute of recording the pill asks first: click **Discard**, or **Keep** (Escape again keeps it too). The recording goes on while it asks.
 
 **Transcribe Audio File…** in the menu picks any audio file (starts in Downloads), runs it through the selected engine and writes the text next to it as `.txt` (`meeting_1788442330_260902_1432.txt`). Finder shows the result. Keys are ignored while it runs. Long files take a moment: Parakeet needs roughly a minute per hour of audio on Apple silicon.
@@ -34,7 +36,7 @@ Recorded 2026-09-02, 14:02–14:32
 [14:02:41] Person 2: I disagree, the travel budget is already small.
 ```
 
-The clock comes from the file name: the seconds give the exact save time, so the start is that minus the length of the audio. The local part of the name tells the time zone of the recording, so the times are shown as they were there, never UTC, even when you transcribe the file somewhere else. Older `meeting_YYMMDD_HHMM` names still work (the minute, plus the seconds from the file's "last changed" time). Other files get times counted from the start of the file, like `[0:41]`. Two limits: the clock assumes the audio ran without gaps, so a microphone drop-out or a sleeping Mac in the middle shifts the times; and a recording across a summer-time switch is one hour off before the switch. Whoever speaks first is Person 1. Names are not known. With one speaker you get plain text. The speaker models ([`FluidInference/speaker-diarization-coreml`](https://huggingface.co/FluidInference/speaker-diarization-coreml), 21 MB, pyannote community-1 + WeSpeaker) are downloaded once on the first run. Limits: similar voices can be mixed up, and people talking over each other confuse it. Apple Speech gets the `Recorded` line but no speaker labels.
+The clock comes from the file name: the seconds give the exact save time, so the start is that minus the length of the audio. The local part of the name tells the time zone of the recording, so the times are shown as they were there, never UTC, even when you transcribe the file somewhere else. Older `meeting_YYMMDD_HHMM` names still work (the minute, plus the seconds from the file's "last changed" time). Other files get times counted from the start of the file, like `[0:41]`. Two limits: the clock assumes the audio ran without gaps, so a sleep or a microphone change in the middle shifts the times before the gap; and a recording across a summer-time switch is one hour off before the switch. Whoever speaks first is Person 1. Names are not known. With one speaker you get plain text. The speaker models ([`FluidInference/speaker-diarization-coreml`](https://huggingface.co/FluidInference/speaker-diarization-coreml), 21 MB, pyannote community-1 + WeSpeaker) are downloaded once on the first run. Limits: similar voices can be mixed up, and people talking over each other confuse it. Apple Speech gets the `Recorded` line but no speaker labels.
 
 **Mode → Dictate (paste text)** or another triple tap switches back.
 
@@ -99,12 +101,13 @@ Sources/Jispr/
   AppDelegate.swift        menu bar item, permission polling
   HotkeyMonitor.swift      CGEventTap: single, double and triple tap of Right Option, Escape
   DictationController.swift  idle → preparing → listening | recording → finishing; file transcription
-  Recording.swift          Mode (dictate / record), AAC file writer, Downloads naming
+  Recording.swift          Mode (dictate / record), Downloads naming
+  RecordingWriter.swift    lossless chunk writer, one-pass AAC encode of the chunks, crash recovery
   FileTranscription.swift  feed a whole audio file into an engine (menu action and --transcribe)
   SpeechEngine.swift       engine protocol, engine choice (UserDefaults), text tidy
   ParakeetEngine.swift     Parakeet via FluidAudio, batch at the end: v2 for dictation, v3 + speaker labels for files
   AppleSpeechEngine.swift  SpeechAnalyzer session, streaming, model download
-  AudioCapture.swift       AVAudioEngine mic tap + level meter
+  AudioCapture.swift       AVAudioEngine mic tap + level meter, restart after sleep / device change
   BufferConverter.swift    resample mic audio to the model's format
   TextInserter.swift       pasteboard + synthetic ⌘V, restores old clipboard
   IndicatorPanel.swift / IndicatorView.swift   floating pill (non-activating panel)

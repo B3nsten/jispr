@@ -1,4 +1,3 @@
-import AVFoundation
 import Foundation
 import JisprCore
 
@@ -35,77 +34,11 @@ enum Mode: String, CaseIterable {
     }
 }
 
-/// Writes microphone buffers to an AAC file (.m4a) while a recording runs.
-final class RecordingWriter: AudioSink {
-    static let fileExtension = "m4a"
-
-    let url: URL
-    private let sampleRate: Double
-    private let lock = NSLock()
-    private var file: AVAudioFile?
-    private var frames: AVAudioFramePosition = 0
-    private var writeError: Error?
-
-    /// Creates the file at `url`. Buffers must come in `format` (the microphone format).
-    init(url: URL, format: AVAudioFormat) throws {
-        self.url = url
-        self.sampleRate = format.sampleRate
-        let settings: [String: Any] = [
-            AVFormatIDKey: kAudioFormatMPEG4AAC,
-            AVSampleRateKey: format.sampleRate,
-            AVNumberOfChannelsKey: format.channelCount,
-            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
-        ]
-        file = try AVAudioFile(
-            forWriting: url, settings: settings,
-            commonFormat: format.commonFormat, interleaved: format.isInterleaved
-        )
-    }
-
-    func feed(_ buffer: AVAudioPCMBuffer) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard let file, writeError == nil else { return }
-        do {
-            try file.write(from: buffer)
-            frames += AVAudioFramePosition(buffer.frameLength)
-        } catch {
-            writeError = error
-            Log.audio.error("Recording write failed: \(String(describing: error), privacy: .public)")
-        }
-    }
-
-    /// Finalizes the file. Returns the recorded length in seconds.
-    func close() throws -> TimeInterval {
-        lock.lock()
-        defer { lock.unlock() }
-        if let file {
-            file.close()
-            self.file = nil
-        }
-        if let writeError { throw writeError }
-        return Double(frames) / sampleRate
-    }
-
-    /// Closes the file and deletes it.
-    func discard() {
-        _ = try? close()
-        try? FileManager.default.removeItem(at: url)
-    }
-}
-
 /// Where recordings and transcripts go.
 enum Recordings {
     static var downloads: URL {
         FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
-    }
-
-    /// A temporary file the recording is written to until it is saved.
-    static func scratchURL() -> URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("jispr-recording-\(UUID().uuidString)")
-            .appendingPathExtension(RecordingWriter.fileExtension)
     }
 
     /// When a `meeting_…` file was saved, and in which time zone. Nil for other files.
