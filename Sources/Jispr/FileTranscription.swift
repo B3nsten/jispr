@@ -4,7 +4,8 @@ import Foundation
 /// Transcribes whole audio files.
 enum FileTranscription {
     /// Feeds the audio file into the engine and returns the text.
-    /// With Parakeet the text is split by speaker (`Person 1: …`) when more than one is heard.
+    /// With Parakeet, the file goes through v3 (25 languages, detected automatically) and the
+    /// text is split by speaker (`Person 1: …`) when more than one is heard.
     @MainActor
     static func transcribe(
         _ url: URL, with engine: SpeechEngine, onModelProgress: ModelProgressHandler? = nil
@@ -17,7 +18,7 @@ enum FileTranscription {
             throw error
         }
         if let parakeet = engine as? ParakeetEngine {
-            return try await parakeet.finishWithSpeakers()
+            return try await parakeet.finishFile(onModelProgress: onModelProgress)
         }
         return try await engine.finish()
     }

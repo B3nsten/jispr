@@ -23,7 +23,7 @@ Pick **Mode → Record to file** in the menu bar. The same keys now record inste
 
 **Transcribe Audio File…** in the menu picks any audio file (starts in Downloads), runs it through the selected engine and writes the text next to it as `.txt` (`meeting_260902_1432.txt`). Finder shows the result. Keys are ignored while it runs. Long files take a moment: Parakeet needs roughly a minute per hour of audio on Apple silicon.
 
-With Parakeet the transcript is split by speaker:
+With Parakeet, files are transcribed by Parakeet v3, which detects the language on its own (German, English, 25 European languages in all; dictation stays on the English-only v2). The transcript is split by speaker:
 
 ```
 Person 1: Good morning, everyone. Let us start with the budget for next quarter.
@@ -41,7 +41,7 @@ Pick one in the menu bar under **Engine**. Default is Parakeet.
 
 | Engine | What it is | Model |
 |---|---|---|
-| **Parakeet** (default) | NVIDIA Parakeet TDT 0.6B v2, English. Better with unusual words. Run on CoreML by [FluidAudio](https://github.com/FluidInference/FluidAudio). | Downloaded once from Hugging Face ([`FluidInference/parakeet-tdt-0.6b-v2-coreml`](https://huggingface.co/FluidInference/parakeet-tdt-0.6b-v2-coreml)) to `~/Library/Application Support/FluidAudio/Models/` (about 450 MB). The pill shows the progress. |
+| **Parakeet** (default) | NVIDIA Parakeet TDT 0.6B v2, English. Better with unusual words. Run on CoreML by [FluidAudio](https://github.com/FluidInference/FluidAudio). Audio files go through v3 instead: 25 European languages, detected automatically. | Downloaded once from Hugging Face ([`FluidInference/parakeet-tdt-0.6b-v2-coreml`](https://huggingface.co/FluidInference/parakeet-tdt-0.6b-v2-coreml), and [`…-v3-coreml`](https://huggingface.co/FluidInference/parakeet-tdt-0.6b-v3-coreml) on the first file) to `~/Library/Application Support/FluidAudio/Models/` (about 450 MB each). The pill shows the progress. |
 | **Apple Speech** | Apple's `SpeechAnalyzer` built into macOS 26. | System model, shared with macOS dictation. |
 
 Parakeet transcribes the whole recording when you stop, so long dictations take a moment longer to paste. Apple Speech streams while you talk.
@@ -99,7 +99,7 @@ Sources/Jispr/
   Recording.swift          Mode (dictate / record), AAC file writer, Downloads naming
   FileTranscription.swift  feed a whole audio file into an engine (menu action and --transcribe)
   SpeechEngine.swift       engine protocol, engine choice (UserDefaults), text tidy
-  ParakeetEngine.swift     Parakeet v2 via FluidAudio, batch at the end; speaker labels for files
+  ParakeetEngine.swift     Parakeet via FluidAudio, batch at the end: v2 for dictation, v3 + speaker labels for files
   AppleSpeechEngine.swift  SpeechAnalyzer session, streaming, model download
   AudioCapture.swift       AVAudioEngine mic tap + level meter
   BufferConverter.swift    resample mic audio to the model's format

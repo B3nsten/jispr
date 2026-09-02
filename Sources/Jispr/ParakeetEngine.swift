@@ -53,8 +53,10 @@ final class ProgressRelay: @unchecked Sendable {
     }
 }
 
-/// NVIDIA Parakeet TDT 0.6B v2 (English). CoreML build from Hugging Face, run by FluidAudio.
+/// NVIDIA Parakeet TDT 0.6B. CoreML build from Hugging Face, run by FluidAudio.
 /// Audio is collected during the session and transcribed in one go at the end.
+/// Dictation uses v2 (English, best quality). Files use v3 (25 European languages, detected
+/// automatically), loaded per file and freed after.
 @MainActor
 final class ParakeetEngine: SpeechEngine {
     let kind: EngineKind = .parakeet
@@ -72,17 +74,17 @@ final class ParakeetEngine: SpeechEngine {
 
     func prewarm() async {
         guard manager == nil, loadTask == nil else { return }
-        loadTask = Task { try await Self.load(progress: progress) }
+        loadTask = Task { try await Self.load(.v2, progress: progress) }
     }
 
-    private static func load(progress: ProgressRelay) async throws -> AsrManager {
-        Log.speech.info("Loading Parakeet v2 model")
-        let models = try await AsrModels.downloadAndLoad(version: .v2) { update in
+    private static func load(_ version: AsrModelVersion, progress: ProgressRelay) async throws -> AsrManager {
+        Log.speech.info("Loading Parakeet \(String(describing: version), privacy: .public) model")
+        let models = try await AsrModels.downloadAndLoad(version: version) { update in
             progress.report(update.fractionCompleted)
         }
         let manager = AsrManager(config: .default)
         try await manager.loadModels(models)
-        Log.speech.info("Parakeet ready")
+        Log.speech.info("Parakeet \(String(describing: version), privacy: .public) ready")
         return manager
     }
 
@@ -90,7 +92,7 @@ final class ParakeetEngine: SpeechEngine {
         if manager == nil {
             progress.set(onModelProgress)
             defer { progress.set(nil) }
-            let task = loadTask ?? Task { try await Self.load(progress: progress) }
+            let task = loadTask ?? Task { try await Self.load(.v2, progress: progress) }
             loadTask = nil
             manager = try await task.value
         }
@@ -110,11 +112,15 @@ final class ParakeetEngine: SpeechEngine {
         return text
     }
 
-    /// Like `finish()`, but the text is split by speaker: `Person 1: …`, `Person 2: …`.
-    /// Whoever speaks first is Person 1. With one speaker the plain text is returned.
-    /// The diarizer models are downloaded once on first use.
-    func finishWithSpeakers() async throws -> String {
-        guard let (manager, samples) = try endSession() else { return "" }
+    /// Ends a session for a whole file. Uses Parakeet v3: the language is detected on its own.
+    /// The text is split by speaker: `Person 1: …`, `Person 2: …`. Whoever speaks first is
+    /// Person 1. With one speaker the plain text is returned.
+    /// The v3 and diarizer models are downloaded once on first use; v3 is freed after the file.
+    func finishFile(onModelProgress: ModelProgressHandler?) async throws -> String {
+        guard let (_, samples) = try endSession() else { return "" }
+        progress.set(onModelProgress)
+        defer { progress.set(nil) }
+        let manager = try await Self.load(.v3, progress: progress)
         let started = Date()
         var state = TdtDecoderState.make()
         let result = try await manager.transcribe(samples, decoderState: &state)
@@ -133,7 +139,7 @@ final class ParakeetEngine: SpeechEngine {
             SpeakerTurn(speaker: $0.speaker, text: clean($0.text))
         }
         let speakers = Set(turns.map(\.speaker)).count
-        Log.speech.info("Parakeet: \(Self.seconds(samples), format: .fixed(precision: 1), privacy: .public) s audio in \(Date().timeIntervalSince(started), format: .fixed(precision: 2), privacy: .public) s, \(words.count, privacy: .public) words, \(speakers, privacy: .public) speakers, \(turns.count, privacy: .public) turns")
+        Log.speech.info("Parakeet v3: \(Self.seconds(samples), format: .fixed(precision: 1), privacy: .public) s audio in \(Date().timeIntervalSince(started), format: .fixed(precision: 2), privacy: .public) s, \(words.count, privacy: .public) words, \(speakers, privacy: .public) speakers, \(turns.count, privacy: .public) turns")
         return SpeakerAlignment.format(turns)
     }
 
