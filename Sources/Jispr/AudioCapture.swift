@@ -15,6 +15,9 @@ final class AudioCapture {
     private var continuation: AsyncStream<AVAudioPCMBuffer>.Continuation?
     private var isRunning = false
 
+    /// The format the microphone delivers. Buffers from `start()` come in this format.
+    var inputFormat: AVAudioFormat { engine.inputNode.outputFormat(forBus: 0) }
+
     func start() throws -> AsyncStream<AVAudioPCMBuffer> {
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)

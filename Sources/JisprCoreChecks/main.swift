@@ -68,6 +68,18 @@ check(
     clean("Hello, this is a test of the JISPR dictation app, it should insert this text where the cursor is", caps: true),
     "Hello, this is a test of the Jispr dictation app, it should insert this text where the cursor is.")
 
+// File names for recordings
+let berlin = TimeZone(identifier: "Europe/Berlin")!
+var calendar = Calendar(identifier: .gregorian)
+calendar.timeZone = berlin
+let afternoon = calendar.date(from: DateComponents(year: 2026, month: 9, day: 2, hour: 14, minute: 32))!
+let morning = calendar.date(from: DateComponents(year: 2026, month: 9, day: 2, hour: 9, minute: 5))!
+check(FileNaming.meetingName(at: afternoon, timeZone: berlin), "meeting_260902_1432")
+check(FileNaming.meetingName(at: morning, timeZone: berlin), "meeting_260902_0905", "leading zeros, 24-hour clock")
+check(FileNaming.unique(base: "meeting_1432", ext: "m4a") { _ in false }, "meeting_1432.m4a")
+check(FileNaming.unique(base: "meeting_1432", ext: "m4a") { $0 == "meeting_1432.m4a" }, "meeting_1432-2.m4a", "name taken")
+check(FileNaming.unique(base: "meeting_1432", ext: "txt") { ["meeting_1432.txt", "meeting_1432-2.txt"].contains($0) }, "meeting_1432-3.txt")
+
 if failures == 0 {
     print("OK: \(count) checks passed")
     exit(0)

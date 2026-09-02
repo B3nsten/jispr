@@ -6,12 +6,17 @@ final class IndicatorModel {
     enum Phase: Equatable {
         case preparing(progress: Double?)
         case listening
+        case recording
         case finishing
+        case transcribing(String)
+        case saved(String)
         case error(String)
     }
 
     var phase: Phase = .listening
     var level: Float = 0
+    /// Seconds since the recording started. Shown while `.recording`.
+    var elapsed: TimeInterval = 0
 }
 
 struct IndicatorView: View {
@@ -30,9 +35,18 @@ struct IndicatorView: View {
             case .listening:
                 LevelBars(level: model.level)
                 Text("Listening")
+            case .recording:
+                LevelBars(level: model.level)
+                Text("Recording \(Self.clock(model.elapsed))").monospacedDigit()
             case .finishing:
                 ProgressView().controlSize(.small).tint(.white)
                 Text("Finishing…")
+            case .transcribing(let name):
+                ProgressView().controlSize(.small).tint(.white)
+                Text("Transcribing \(name)…")
+            case .saved(let name):
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                Text("Saved \(name)")
             case .error(let message):
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
                 Text(message)
@@ -48,6 +62,13 @@ struct IndicatorView: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.easeInOut(duration: 0.15), value: model.phase)
+    }
+
+    /// `m:ss`, or `h:mm:ss` from one hour on.
+    private static func clock(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds)
+        let h = total / 3600, m = (total % 3600) / 60, s = total % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
     }
 }
 

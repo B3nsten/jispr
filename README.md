@@ -11,7 +11,19 @@ English only. Fully on-device. No accounts, no cloud, almost no settings.
 4. **Escape** → abort. Nothing is pasted.
 
 While Jispr is listening, Escape is swallowed so the front app never sees it.
-The menu bar icon (a microphone) fills while a session is active. That is the whole UI.
+The menu bar icon (a microphone) fills while a session is active. That is almost the whole UI.
+
+## Recording a meeting
+
+Pick **Mode → Record to file** in the menu bar. The same keys now record instead of dictate:
+
+1. **Double-tap Right Option** → recording starts. The pill shows *Recording* with a level meter and a clock. The menu bar icon becomes a record dot.
+2. **Tap Right Option once** → the recording is saved to `~/Downloads/meeting_YYMMDD_HHMM.m4a` (date and 24-hour time of the save, e.g. `meeting_260902_1432.m4a`; a second one in the same minute becomes `meeting_260902_1432-2.m4a`). AAC, small enough for hours.
+3. **Escape** → abort. The file is thrown away.
+
+**Transcribe Audio File…** in the menu picks any audio file (starts in Downloads), runs it through the selected engine and writes the text next to it as `.txt` (`meeting_260902_1432.txt`). Finder shows the result. Keys are ignored while it runs. Long files take a moment: Parakeet needs roughly a minute per hour of audio on Apple silicon.
+
+**Mode → Dictate (paste text)** switches back.
 
 ## Speech engines
 
@@ -73,7 +85,9 @@ Sources/Jispr/
   JisprMain.swift          entry point (app or --transcribe)
   AppDelegate.swift        menu bar item, permission polling
   HotkeyMonitor.swift      CGEventTap: double-tap Right Option, Escape
-  DictationController.swift  idle → preparing → listening → finishing
+  DictationController.swift  idle → preparing → listening | recording → finishing; file transcription
+  Recording.swift          Mode (dictate / record), AAC file writer, Downloads naming
+  FileTranscription.swift  feed a whole audio file into an engine (menu action and --transcribe)
   SpeechEngine.swift       engine protocol, engine choice (UserDefaults), text tidy
   ParakeetEngine.swift     Parakeet v2 via FluidAudio, batch at the end
   AppleSpeechEngine.swift  SpeechAnalyzer session, streaming, model download
@@ -81,6 +95,9 @@ Sources/Jispr/
   BufferConverter.swift    resample mic audio to the model's format
   TextInserter.swift       pasteboard + synthetic ⌘V, restores old clipboard
   IndicatorPanel.swift / IndicatorView.swift   floating pill (non-activating panel)
+Sources/JisprCore/
+  TextCleanup.swift        transcript clean-up (pure, checked by make check)
+  FileNaming.swift         meeting_YYMMDD_HHMM names, -2/-3 suffixes (pure, checked)
 Resources/Info.plist       LSUIElement, usage descriptions
 Makefile                   build, bundle, sign, run, install, cert
 scripts/make-signing-cert.sh   one-time local signing certificate

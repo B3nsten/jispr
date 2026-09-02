@@ -1,8 +1,37 @@
 import AVFoundation
 import Foundation
 
-/// Developer helper: `Jispr --transcribe <audio file> [parakeet|apple]` prints the transcript.
+/// Transcribes whole audio files.
 enum FileTranscription {
+    /// Feeds the audio file into the engine and returns the text.
+    @MainActor
+    static func transcribe(
+        _ url: URL, with engine: SpeechEngine, onModelProgress: ModelProgressHandler? = nil
+    ) async throws -> String {
+        let sink = try await engine.start(onModelProgress: onModelProgress)
+        do {
+            try await Task.detached(priority: .userInitiated) { try feed(url, into: sink) }.value
+        } catch {
+            await engine.cancel()
+            throw error
+        }
+        return try await engine.finish()
+    }
+
+    /// Reads the file in chunks and pushes them into the sink.
+    private static func feed(_ url: URL, into sink: AudioSink) throws {
+        let file = try AVAudioFile(forReading: url)
+        let format = file.processingFormat
+        let chunk: AVAudioFrameCount = 8192
+        while file.framePosition < file.length {
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunk) else { break }
+            try file.read(into: buffer, frameCount: chunk)
+            if buffer.frameLength == 0 { break }
+            sink.feed(buffer)
+        }
+    }
+
+    /// Developer helper: `Jispr --transcribe <audio file> [parakeet|apple]` prints the transcript.
     static func run(path: String, engineName: String?) async -> Int32 {
         let url = URL(fileURLWithPath: path)
         do {
@@ -10,21 +39,11 @@ enum FileTranscription {
             FileHandle.standardError.write(Data("engine: \(kind.rawValue)\n".utf8))
             let engine = await kind.makeEngine()
             let lastPercent = LockedValue(-1)
-            let feeder = try await engine.start { progress in
+            let text = try await transcribe(url, with: engine) { progress in
                 let percent = Int(progress * 100)
                 guard lastPercent.swap(percent) != percent else { return }
                 FileHandle.standardError.write(Data("model download \(percent)%\n".utf8))
             }
-            let file = try AVAudioFile(forReading: url)
-            let format = file.processingFormat
-            let chunk: AVAudioFrameCount = 8192
-            while file.framePosition < file.length {
-                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunk) else { break }
-                try file.read(into: buffer, frameCount: chunk)
-                if buffer.frameLength == 0 { break }
-                feeder.feed(buffer)
-            }
-            let text = try await engine.finish()
             print(text)
             return 0
         } catch {
