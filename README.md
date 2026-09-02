@@ -3,6 +3,8 @@
 A tiny [Wispr Flow](https://wisprflow.ai)-style dictation app for macOS 26.
 English only. Fully on-device. No accounts, no cloud, almost no settings.
 
+New here? Jump to [How to get started](#how-to-get-started).
+
 ## How it works
 
 1. **Double-tap Right Option (⌥)** → Jispr starts listening. A small pill at the bottom of the screen shows *Listening* with a level meter.
@@ -66,26 +68,112 @@ Every transcript goes through a small, deterministic clean-up before it is paste
 defaults write io.github.b3nsten.jispr keepCaps -array WWDC FOOBAR
 ```
 
-## Requirements
+## How to get started
 
-- macOS 26 (Tahoe) on Apple silicon
-- Xcode Command Line Tools with Swift 6.2 (`xcode-select --install`)
+From a fresh clone to your first dictation. About ten minutes, plus download time.
 
-## Build and run
+### Before you start
+
+Check these in Terminal. Each check is one command.
+
+| You need | Check | Expected | If not |
+|---|---|---|---|
+| A Mac with Apple silicon (M1 or newer) | `uname -m` | `arm64` | Intel Macs cannot run Jispr. |
+| macOS 26 (Tahoe) or newer | `sw_vers -productVersion` | `26.…` | System Settings → General → Software Update. |
+| Xcode Command Line Tools with Swift 6.2 or newer. They bring `git`, `make` and `swift`. | `swift --version` | `Apple Swift version 6.2` or higher | `xcode-select --install`, wait for the installer, run the check again. Full Xcode works too, but is not needed. |
+| Free disk space | | about 3 GB | The build takes 1.3 GB, the speech models about 1 GB. |
+
+Also good to know:
+
+- **Internet, twice.** The first build fetches the FluidAudio package. The first dictation downloads the Parakeet model (about 450 MB, once). After that Jispr works offline.
+- **A keyboard with a Right Option (⌥) key.** Every Apple keyboard has one, to the right of the space bar. Jispr uses only that key.
+- **No Xcode project.** Jispr is a Swift package with a Makefile. You never open Xcode.
+
+### Step by step
+
+**1. Clone the repository.**
 
 ```sh
-make run          # builds build/Jispr.app and opens it
-make install      # copies it to /Applications
+git clone https://github.com/B3nsten/jispr.git
+cd jispr
 ```
 
-## Permissions (first run)
+**2. Create the local signing certificate (once).**
 
-| Permission | Why | Where |
+```sh
+make cert
+```
+
+macOS asks for your login password. This creates a self-signed certificate named *Jispr Local Signing* in your login keychain.
+
+Why: macOS ties the Accessibility permission to the app's signature. With this certificate the signature stays the same over rebuilds, so you grant the permission once. Without it you would grant it again after every build.
+
+Check: `security find-identity -v -p codesigning` lists `"Jispr Local Signing"`.
+
+**3. Build and start Jispr.**
+
+```sh
+make run
+```
+
+The first build fetches FluidAudio and compiles everything. That takes a few minutes. Later builds take seconds. The last line is:
+
+```
+Built build/Jispr.app (signed with: Jispr Local Signing)
+```
+
+Then the app opens. Jispr has no window and no Dock icon. Look for a **microphone icon in the menu bar**, top right. Click it to see the menu.
+
+**4. Grant Accessibility.**
+
+On the first start macOS shows a dialog: *"Jispr" would like to control this computer using accessibility features.* Click **Open System Settings** and turn on **Jispr**.
+
+If the dialog is gone: open the Jispr menu and click **Accessibility: not granted – open settings…**. Or go to System Settings → Privacy & Security → Accessibility, click **+** and pick `build/Jispr.app` from the repository folder.
+
+Jispr notices the grant by itself, no restart. The menu item changes to **Accessibility: granted**.
+
+Jispr needs this for two things: to see the Right Option key while another app is in front, and to paste (it sends ⌘V to that app).
+
+**5. Dictate for the first time.**
+
+1. Open a text field, for example a new TextEdit or Notes document. Click into it.
+2. **Double-tap Right Option.** macOS asks for the **Microphone**. Click **Allow** (once).
+3. The pill at the bottom of the screen shows *Downloading model … %* (about 450 MB, once). Wait until it shows **Listening**.
+4. Say a sentence.
+5. **Tap Right Option once.** The text appears at your cursor.
+
+That is it. From now on: double-tap, speak, tap. See [How it works](#how-it-works) for Escape and the recording mode.
+
+**6. Optional: install to /Applications.**
+
+```sh
+make install
+```
+
+Copies the app to `/Applications/Jispr.app`. Start it from Spotlight or with `open /Applications/Jispr.app`. The signature is the same, so the Accessibility grant stays.
+
+To start Jispr at login: System Settings → General → Login Items & Extensions → **+** → Jispr.
+
+**7. Optional: run the checks.**
+
+```sh
+make check
+```
+
+Runs the JisprCore checks (text clean-up, file naming, speaker alignment). The last line should read `OK: … checks passed`.
+
+### If something does not work
+
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| Accessibility | global hotkey + pasting into the front app | System Settings → Privacy & Security → Accessibility → add **Jispr** |
-| Microphone | hearing you | macOS asks on your first dictation |
+| `swift: command not found`, or `swift --version` shows less than 6.2 | Command Line Tools missing, or another toolchain is selected | `xcode-select --install`. If Xcode is installed but old: `sudo xcode-select -s /Library/Developer/CommandLineTools`. |
+| Double tap does nothing, no pill | Accessibility not granted, or granted to an older signature (build before `make cert`) | Open the Jispr menu. *Not granted*: click the item and turn Jispr on. *Granted* but still nothing: in Accessibility, remove Jispr with **–** and add `build/Jispr.app` again. |
+| Pill shows *Listening*, but nothing is pasted | Microphone denied, or the front app does not accept ⌘V | System Settings → Privacy & Security → Microphone → turn on Jispr. Try TextEdit first. |
+| Pill stays on *Downloading model* | First run, 450 MB | Wait. The model lands in `~/Library/Application Support/FluidAudio/Models/`. |
+| You want to see what Jispr does | | `/usr/bin/log stream --level info --predicate 'subsystem == "io.github.b3nsten.jispr"'` |
+| You want to test speech without a microphone | | `say -o test.aiff "hello world"`, then `build/Jispr.app/Contents/MacOS/Jispr --transcribe test.aiff` |
 
-If the English speech model is not on your Mac yet, Jispr downloads it on first use and shows the progress in the pill.
+Start over: `make clean` removes the build, `make run` builds again. The certificate and the downloaded models stay.
 
 ## Notes
 
