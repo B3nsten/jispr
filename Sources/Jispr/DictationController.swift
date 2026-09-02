@@ -234,7 +234,7 @@ final class DictationController {
         }
     }
 
-    /// Stop recording and save the file as `~/Downloads/meeting_YYMMDD_HHMM.m4a`.
+    /// Stop recording and save the file as `~/Downloads/meeting_<seconds>_YYMMDD_HHMM.m4a`.
     private func finishRecording() {
         guard state == .recording, let writer = recording else { return }
         state = .finishing

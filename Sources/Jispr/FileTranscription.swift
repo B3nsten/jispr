@@ -5,7 +5,8 @@ import Foundation
 enum FileTranscription {
     /// Feeds the audio file into the engine and returns the text.
     /// With Parakeet, the file goes through v3 (25 languages, detected automatically) and the
-    /// text is split by speaker (`Person 1: …`) when more than one is heard.
+    /// text is split by speaker (`[14:02:05] Person 1: …`) when more than one is heard. The clock
+    /// times come from the `meeting_…` file name; other files get times from the start of the file.
     @MainActor
     static func transcribe(
         _ url: URL, with engine: SpeechEngine, onModelProgress: ModelProgressHandler? = nil
@@ -18,7 +19,7 @@ enum FileTranscription {
             throw error
         }
         if let parakeet = engine as? ParakeetEngine {
-            return try await parakeet.finishFile(onModelProgress: onModelProgress)
+            return try await parakeet.finishFile(savedAt: Recordings.savedTime(of: url), onModelProgress: onModelProgress)
         }
         return try await engine.finish()
     }

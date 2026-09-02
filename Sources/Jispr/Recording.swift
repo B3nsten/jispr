@@ -105,6 +105,12 @@ enum Recordings {
             .appendingPathExtension(RecordingWriter.fileExtension)
     }
 
+    /// When a `meeting_…` file was saved, and in which time zone. Nil for other files.
+    static func savedTime(of url: URL) -> FileNaming.SavedTime? {
+        let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        return FileNaming.savedTime(name: url.deletingPathExtension().lastPathComponent, modified: modified)
+    }
+
     /// `<dir>/<base>.<ext>`, with `-2`, `-3`, ... added when the name is taken.
     static func freeURL(in dir: URL, base: String, ext: String) -> URL {
         let name = FileNaming.unique(base: base, ext: ext) { candidate in

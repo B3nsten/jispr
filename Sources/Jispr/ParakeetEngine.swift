@@ -113,11 +113,13 @@ final class ParakeetEngine: SpeechEngine {
     }
 
     /// Ends a session for a whole file. Uses Parakeet v3: the language is detected on its own.
-    /// The text is split by speaker: `Person 1: …`, `Person 2: …`. Whoever speaks first is
-    /// Person 1. With one speaker the plain text is returned.
+    /// The text is split by speaker: `[14:02:05] Person 1: …`. Whoever speaks first is Person 1.
+    /// With one speaker the plain text is returned. `savedAt` (when and where the file was saved)
+    /// turns the times into clock times in that zone; without it they count from the start of the file.
     /// The v3 and diarizer models are downloaded once on first use; v3 is freed after the file.
-    func finishFile(onModelProgress: ModelProgressHandler?) async throws -> String {
+    func finishFile(savedAt: FileNaming.SavedTime?, onModelProgress: ModelProgressHandler?) async throws -> String {
         guard let (_, samples) = try endSession() else { return "" }
+        let clock = savedAt.map { TranscriptClock(savedAt: $0.date, duration: Self.seconds(samples), timeZone: $0.timeZone) }
         progress.set(onModelProgress)
         defer { progress.set(nil) }
         let manager = try await Self.load(.v3, progress: progress)
@@ -126,7 +128,7 @@ final class ParakeetEngine: SpeechEngine {
         let result = try await manager.transcribe(samples, decoderState: &state)
         guard let timings = result.tokenTimings, !timings.isEmpty else {
             Log.speech.warning("No word timings; transcript without speakers")
-            return clean(result.text)
+            return SpeakerAlignment.format([SpeakerTurn(speaker: 1, start: 0, text: clean(result.text))], clock: clock)
         }
         let words = buildWordTimings(from: timings).map { TimedWord($0.word, $0.startTime, $0.endTime) }
 
@@ -136,11 +138,11 @@ final class ParakeetEngine: SpeechEngine {
             SpeakerSpan($0.speakerId, Double($0.startTimeSeconds), Double($0.endTimeSeconds))
         }
         let turns = SpeakerAlignment.turns(words: words, spans: spans).map {
-            SpeakerTurn(speaker: $0.speaker, text: clean($0.text))
+            SpeakerTurn(speaker: $0.speaker, start: $0.start, text: clean($0.text))
         }
         let speakers = Set(turns.map(\.speaker)).count
         Log.speech.info("Parakeet v3: \(Self.seconds(samples), format: .fixed(precision: 1), privacy: .public) s audio in \(Date().timeIntervalSince(started), format: .fixed(precision: 2), privacy: .public) s, \(words.count, privacy: .public) words, \(speakers, privacy: .public) speakers, \(turns.count, privacy: .public) turns")
-        return SpeakerAlignment.format(turns)
+        return SpeakerAlignment.format(turns, clock: clock)
     }
 
     func cancel() async {
