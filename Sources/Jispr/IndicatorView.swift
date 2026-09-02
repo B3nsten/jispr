@@ -1,3 +1,4 @@
+import JisprCore
 import SwiftUI
 
 @MainActor
@@ -37,7 +38,7 @@ struct IndicatorView: View {
                 Text("Listening")
             case .recording:
                 LevelBars(level: model.level)
-                Text("Recording \(Self.clock(model.elapsed))").monospacedDigit()
+                Text("Recording \(SpeakerAlignment.relative(model.elapsed))").monospacedDigit()
             case .finishing:
                 ProgressView().controlSize(.small).tint(.white)
                 Text("Finishing…")
@@ -62,13 +63,6 @@ struct IndicatorView: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.easeInOut(duration: 0.15), value: model.phase)
-    }
-
-    /// `m:ss`, or `h:mm:ss` from one hour on.
-    private static func clock(_ seconds: TimeInterval) -> String {
-        let total = Int(seconds)
-        let h = total / 3600, m = (total % 3600) / 60, s = total % 60
-        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
     }
 }
 

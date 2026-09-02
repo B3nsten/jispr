@@ -86,27 +86,39 @@ public enum SpeakerAlignment {
     /// `[14:02:05] Person 1: …` paragraphs, one per turn, under a `Recorded …` line.
     /// Without a clock the times count from the start of the file: `[0:41] Person 2: …`.
     /// With one speaker only, the plain text (plus the `Recorded` line when the clock is known).
+    /// Across midnight the `Recorded` line and the stamps carry the date. Nothing said: empty.
     public static func format(_ turns: [SpeakerTurn], clock: TranscriptClock? = nil) -> String {
-        guard !turns.isEmpty else { return "" }
+        let spoken = turns.filter { !$0.text.isEmpty }
+        guard !spoken.isEmpty else { return "" }
+
         var header = ""
+        var stampFormat = "HH:mm:ss"
         if let clock {
-            let day = formatter("yyyy-MM-dd", clock.timeZone)
-            let time = formatter("HH:mm", clock.timeZone)
             let end = clock.start.addingTimeInterval(clock.duration)
-            header = "Recorded \(day.string(from: clock.start)), \(time.string(from: clock.start))–\(time.string(from: end))\n\n"
+            let day = DateFormatter.posix("yyyy-MM-dd", in: clock.timeZone)
+            let time = DateFormatter.posix("HH:mm", in: clock.timeZone)
+            let startDay = day.string(from: clock.start)
+            let endDay = day.string(from: end)
+            if startDay == endDay {
+                header = "Recorded \(startDay), \(time.string(from: clock.start))–\(time.string(from: end))\n\n"
+            } else {
+                header = "Recorded \(startDay), \(time.string(from: clock.start)) – \(endDay), \(time.string(from: end))\n\n"
+                stampFormat = "yyyy-MM-dd HH:mm:ss"
+            }
         }
-        let speakers = Set(turns.map(\.speaker))
+
+        let speakers = Set(spoken.map(\.speaker))
         if speakers.count <= 1 {
-            return header + turns.map(\.text).joined(separator: " ")
+            return header + spoken.map(\.text).joined(separator: " ")
         }
         let stamp: (Double) -> String
         if let clock {
-            let time = formatter("HH:mm:ss", clock.timeZone)
+            let time = DateFormatter.posix(stampFormat, in: clock.timeZone)
             stamp = { time.string(from: clock.start.addingTimeInterval($0)) }
         } else {
             stamp = relative
         }
-        return header + turns.map { "[\(stamp($0.start))] Person \($0.speaker): \($0.text)" }.joined(separator: "\n\n")
+        return header + spoken.map { "[\(stamp($0.start))] Person \($0.speaker): \($0.text)" }.joined(separator: "\n\n")
     }
 
     /// `m:ss`, or `h:mm:ss` from one hour on.
@@ -114,14 +126,6 @@ public enum SpeakerAlignment {
         let total = Int(seconds)
         let h = total / 3600, m = (total % 3600) / 60, s = total % 60
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
-    }
-
-    private static func formatter(_ format: String, _ timeZone: TimeZone) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = timeZone
-        formatter.dateFormat = format
-        return formatter
     }
 
     private static func speaker(of word: TimedWord, in spans: [SpeakerSpan]) -> String {

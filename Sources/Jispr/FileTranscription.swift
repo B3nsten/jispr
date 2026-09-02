@@ -1,31 +1,36 @@
 import AVFoundation
 import Foundation
+import JisprCore
 
 /// Transcribes whole audio files.
 enum FileTranscription {
     /// Feeds the audio file into the engine and returns the text.
+    /// A `meeting_…` file gets a `Recorded …` line with the clock from its name.
     /// With Parakeet, the file goes through v3 (25 languages, detected automatically) and the
-    /// text is split by speaker (`[14:02:05] Person 1: …`) when more than one is heard. The clock
-    /// times come from the `meeting_…` file name; other files get times from the start of the file.
+    /// text is split by speaker (`[14:02:05] Person 1: …`) when more than one is heard.
     @MainActor
     static func transcribe(
         _ url: URL, with engine: SpeechEngine, onModelProgress: ModelProgressHandler? = nil
     ) async throws -> String {
+        let savedAt = Recordings.savedTime(of: url)
         let sink = try await engine.start(onModelProgress: onModelProgress)
+        let duration: TimeInterval
         do {
-            try await Task.detached(priority: .userInitiated) { try feed(url, into: sink) }.value
+            duration = try await Task.detached(priority: .userInitiated) { try feed(url, into: sink) }.value
         } catch {
             await engine.cancel()
             throw error
         }
         if let parakeet = engine as? ParakeetEngine {
-            return try await parakeet.finishFile(savedAt: Recordings.savedTime(of: url), onModelProgress: onModelProgress)
+            return try await parakeet.finishFile(savedAt: savedAt, onModelProgress: onModelProgress)
         }
-        return try await engine.finish()
+        let text = try await engine.finish()
+        let clock = savedAt.map { TranscriptClock(savedAt: $0.date, duration: duration, timeZone: $0.timeZone) }
+        return SpeakerAlignment.format([SpeakerTurn(speaker: 1, start: 0, text: text)], clock: clock)
     }
 
-    /// Reads the file in chunks and pushes them into the sink.
-    private static func feed(_ url: URL, into sink: AudioSink) throws {
+    /// Reads the file in chunks and pushes them into the sink. Returns the length in seconds.
+    private static func feed(_ url: URL, into sink: AudioSink) throws -> TimeInterval {
         let file = try AVAudioFile(forReading: url)
         let format = file.processingFormat
         let chunk: AVAudioFrameCount = 8192
@@ -35,6 +40,7 @@ enum FileTranscription {
             if buffer.frameLength == 0 { break }
             sink.feed(buffer)
         }
+        return Double(file.length) / format.sampleRate
     }
 
     /// Developer helper: `Jispr --transcribe <audio file> [parakeet|apple]` prints the transcript.

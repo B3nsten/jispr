@@ -2,11 +2,13 @@ import Foundation
 
 /// Names for saved recordings and transcripts.
 public enum FileNaming {
+    private static let localFormat = "yyMMdd_HHmm"
+
     /// `meeting_<seconds since 1970>_<yyMMdd_HHmm>`, for example `meeting_1788442330_260902_1432`.
     /// The number is exact and for calculations. The rest is local time (24-hour clock) for people.
     public static func meetingName(at date: Date, timeZone: TimeZone = .current) -> String {
-        let formatter = localFormatter(timeZone)
-        return "meeting_\(Int(date.timeIntervalSince1970))_" + formatter.string(from: date)
+        let local = DateFormatter.posix(localFormat, in: timeZone).string(from: date)
+        return "meeting_\(Int(date.timeIntervalSince1970))_\(local)"
     }
 
     /// When a `meeting_…` file was saved, and the time zone it was saved in.
@@ -24,23 +26,26 @@ public enum FileNaming {
     ///
     /// - `meeting_1788442330_260902_1432`: the seconds give the exact moment. The local part tells the
     ///   time zone of the recording, so the transcript shows the clock as it was there, never UTC.
+    ///   When the two parts do not agree (a typo in the name), there is no clock.
     /// - `meeting_260902_1432` (older files): the minute, in `timeZone`. The file's "last changed" time
     ///   adds the seconds when it falls inside that minute (a copied file may be way off).
     public static func savedTime(name: String, modified: Date?, timeZone: TimeZone = .current) -> SavedTime? {
-        guard name.hasPrefix("meeting_") else { return nil }
-        let parts = name.dropFirst("meeting_".count).split(separator: "_", maxSplits: 1).map(String.init)
-        guard parts.count == 2 else { return nil }
+        guard let match = name.wholeMatch(of: #/meeting_(?:(\d{9,})_)?(\d{6}_\d{4})(?:-\d+)?/#) else { return nil }
+        let local = String(match.2)
 
-        if let seconds = Int(parts[0]), seconds > 0, let local = localDate(String(parts[1].prefix(11)), in: .gmt) {
+        if let secondsText = match.1 {
+            guard let seconds = Int(secondsText),
+                  let localAsUTC = DateFormatter.posix(localFormat, in: .gmt).date(from: local)
+            else { return nil }
             // Local time read as if it were UTC, minus the true UTC minute, is the zone's offset.
-            let date = Date(timeIntervalSince1970: TimeInterval(seconds))
             let utcMinute = TimeInterval(seconds - seconds % 60)
-            let offset = Int(local.timeIntervalSince1970 - utcMinute)
-            guard let zone = TimeZone(secondsFromGMT: offset) else { return nil }
-            return SavedTime(date: date, timeZone: zone)
+            let offset = Int(localAsUTC.timeIntervalSince1970 - utcMinute)
+            // Real zones are whole quarter hours within 18 hours of UTC. Anything else is a typo.
+            guard offset % 900 == 0, abs(offset) <= 18 * 3600, let zone = TimeZone(secondsFromGMT: offset) else { return nil }
+            return SavedTime(date: Date(timeIntervalSince1970: TimeInterval(seconds)), timeZone: zone)
         }
 
-        guard let minute = localDate(String(name.dropFirst("meeting_".count).prefix(11)), in: timeZone) else { return nil }
+        guard let minute = DateFormatter.posix(localFormat, in: timeZone).date(from: local) else { return nil }
         if let modified, modified >= minute, modified < minute.addingTimeInterval(60) {
             return SavedTime(date: modified, timeZone: timeZone)
         }
@@ -57,17 +62,5 @@ public enum FileNaming {
             if !taken(candidate) { return candidate }
             n += 1
         }
-    }
-
-    private static func localDate(_ stamp: String, in timeZone: TimeZone) -> Date? {
-        localFormatter(timeZone).date(from: stamp)
-    }
-
-    private static func localFormatter(_ timeZone: TimeZone) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = timeZone
-        formatter.dateFormat = "yyMMdd_HHmm"
-        return formatter
     }
 }

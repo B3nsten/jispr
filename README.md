@@ -18,7 +18,7 @@ The menu bar icon (a microphone) fills while a session is active. That is almost
 Pick **Mode → Record to file** in the menu bar. The same keys now record instead of dictate:
 
 1. **Double-tap Right Option** → recording starts. The pill shows *Recording* with a level meter and a clock. The menu bar icon becomes a record dot.
-2. **Tap Right Option once** → the recording is saved to `~/Downloads/meeting_<seconds>_YYMMDD_HHMM.m4a`, e.g. `meeting_1788442330_260902_1432.m4a`. The number is the exact save time in seconds since 1970 (for calculations); the rest is the local date and 24-hour time (for you). A second one in the same minute becomes `…-2.m4a`. AAC, small enough for hours.
+2. **Tap Right Option once** → the recording is saved to `~/Downloads/meeting_<seconds>_YYMMDD_HHMM.m4a`, e.g. `meeting_1788442330_260902_1432.m4a`. The number is the exact save time in seconds since 1970 (for calculations); the rest is the local date and 24-hour time (for you). A name clash gets `-2`. AAC, small enough for hours.
 3. **Escape** → abort. The file is thrown away.
 
 **Transcribe Audio File…** in the menu picks any audio file (starts in Downloads), runs it through the selected engine and writes the text next to it as `.txt` (`meeting_1788442330_260902_1432.txt`). Finder shows the result. Keys are ignored while it runs. Long files take a moment: Parakeet needs roughly a minute per hour of audio on Apple silicon.
@@ -33,7 +33,7 @@ Recorded 2026-09-02, 14:02–14:32
 [14:02:41] Person 2: I disagree, the travel budget is already small.
 ```
 
-The clock comes from the file name: the seconds give the exact save time, so the start is that minus the length of the audio. The local part of the name tells the time zone of the recording, so the times are shown as they were there, never UTC, even when you transcribe the file somewhere else. Older `meeting_YYMMDD_HHMM` names still work (the minute, plus the seconds from the file's "last changed" time). Other files get times counted from the start of the file, like `[0:41]`. Whoever speaks first is Person 1. Names are not known. With one speaker you get plain text. The speaker models ([`FluidInference/speaker-diarization-coreml`](https://huggingface.co/FluidInference/speaker-diarization-coreml), 21 MB, pyannote community-1 + WeSpeaker) are downloaded once on the first run. Limits: similar voices can be mixed up, and people talking over each other confuse it. Apple Speech has no speaker labels.
+The clock comes from the file name: the seconds give the exact save time, so the start is that minus the length of the audio. The local part of the name tells the time zone of the recording, so the times are shown as they were there, never UTC, even when you transcribe the file somewhere else. Older `meeting_YYMMDD_HHMM` names still work (the minute, plus the seconds from the file's "last changed" time). Other files get times counted from the start of the file, like `[0:41]`. Two limits: the clock assumes the audio ran without gaps, so a microphone drop-out or a sleeping Mac in the middle shifts the times; and a recording across a summer-time switch is one hour off before the switch. Whoever speaks first is Person 1. Names are not known. With one speaker you get plain text. The speaker models ([`FluidInference/speaker-diarization-coreml`](https://huggingface.co/FluidInference/speaker-diarization-coreml), 21 MB, pyannote community-1 + WeSpeaker) are downloaded once on the first run. Limits: similar voices can be mixed up, and people talking over each other confuse it. Apple Speech gets the `Recorded` line but no speaker labels.
 
 **Mode → Dictate (paste text)** switches back.
 
@@ -110,6 +110,7 @@ Sources/Jispr/
 Sources/JisprCore/
   TextCleanup.swift        transcript clean-up (pure, checked by make check)
   FileNaming.swift         meeting_<seconds>_YYMMDD_HHMM names and reading them back, -2/-3 suffixes (pure, checked)
+  DateFormatters.swift     one fixed-format DateFormatter helper
   SpeakerAlignment.swift   words + "who spoke when" spans → timed Person 1 / Person 2 turns (pure, checked)
 Resources/Info.plist       LSUIElement, usage descriptions
 Makefile                   build, bundle, sign, run, install, cert

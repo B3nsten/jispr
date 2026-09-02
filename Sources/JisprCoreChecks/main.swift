@@ -100,6 +100,9 @@ check(saved("meeting_260902_1432", modified: afternoon.addingTimeInterval(3600))
 check(saved("interview"), "nil")
 check(saved("meeting_2609"), "nil", "too short")
 check(saved("meeting_abc_260902_1432"), "nil")
+check(saved("meeting_\(epoch)_260901_1432"), "nil", "typo in the day: no clock rather than a wrong one")
+check(saved("meeting_\(epoch)_260902_1500"), "nil", "typo in the time: the parts do not agree")
+check(saved("meeting_\(epoch)_260902_1432_extra"), "nil", "junk after the name")
 
 // Speaker turns
 let twoSpeakers = [SpeakerSpan("S2", 0.0, 2.0), SpeakerSpan("S1", 2.5, 4.0), SpeakerSpan("S2", 4.0, 5.0)]
@@ -119,6 +122,10 @@ let longClock = TranscriptClock(savedAt: afternoon, duration: 3600, timeZone: be
 check(SpeakerAlignment.format([SpeakerTurn(speaker: 1, start: 0, text: "Hello.")], clock: longClock), "Recorded 2026-09-02, 13:32–14:32\n\nHello.", "one speaker: header and plain text")
 check(SpeakerAlignment.relative(3725), "1:02:05")
 check(SpeakerAlignment.format([]), "")
+check(SpeakerAlignment.format([SpeakerTurn(speaker: 1, start: 0, text: "")], clock: clock), "", "nothing said: no header either")
+let pastMidnight = TranscriptClock(savedAt: calendar.date(from: DateComponents(year: 2026, month: 9, day: 3, hour: 0, minute: 30))!, duration: 3600, timeZone: berlin)
+let nightTurns = [SpeakerTurn(speaker: 1, start: 0, text: "hello there"), SpeakerTurn(speaker: 2, start: 2100, text: "hi bob")]
+check(SpeakerAlignment.format(nightTurns, clock: pastMidnight), "Recorded 2026-09-02, 23:30 – 2026-09-03, 00:30\n\n[2026-09-02 23:30:00] Person 1: hello there\n\n[2026-09-03 00:05:00] Person 2: hi bob", "across midnight: dates everywhere")
 check(SpeakerAlignment.format(SpeakerAlignment.turns(words: words, spans: [SpeakerSpan("S1", 0, 5)])), "hello there hi bob bye", "one speaker: plain text")
 check(SpeakerAlignment.format(SpeakerAlignment.turns(words: words, spans: [])), "hello there hi bob bye", "no spans: plain text")
 let gapWord = [TimedWord("um", 2.1, 2.3)]
