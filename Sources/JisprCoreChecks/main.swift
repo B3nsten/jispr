@@ -80,6 +80,24 @@ check(FileNaming.unique(base: "meeting_1432", ext: "m4a") { _ in false }, "meeti
 check(FileNaming.unique(base: "meeting_1432", ext: "m4a") { $0 == "meeting_1432.m4a" }, "meeting_1432-2.m4a", "name taken")
 check(FileNaming.unique(base: "meeting_1432", ext: "txt") { ["meeting_1432.txt", "meeting_1432-2.txt"].contains($0) }, "meeting_1432-3.txt")
 
+// Speaker turns
+let twoSpeakers = [SpeakerSpan("S2", 0.0, 2.0), SpeakerSpan("S1", 2.5, 4.0), SpeakerSpan("S2", 4.0, 5.0)]
+let words = [
+    TimedWord("hello", 0.1, 0.5), TimedWord("there", 0.6, 1.0),
+    TimedWord("hi", 2.6, 2.9), TimedWord("bob", 3.0, 3.4),
+    TimedWord("bye", 4.2, 4.6),
+]
+let turns = SpeakerAlignment.turns(words: words, spans: twoSpeakers)
+check(String(describing: turns.map { "\($0.speaker):\($0.text)" }), String(describing: ["1:hello there", "2:hi bob", "1:bye"]), "first voice is Person 1")
+check(SpeakerAlignment.format(turns), "Person 1: hello there\n\nPerson 2: hi bob\n\nPerson 1: bye")
+check(SpeakerAlignment.format(SpeakerAlignment.turns(words: words, spans: [SpeakerSpan("S1", 0, 5)])), "hello there hi bob bye", "one speaker: plain text")
+check(SpeakerAlignment.format(SpeakerAlignment.turns(words: words, spans: [])), "hello there hi bob bye", "no spans: plain text")
+let gapWord = [TimedWord("um", 2.1, 2.3)]
+check(SpeakerAlignment.turns(words: gapWord, spans: twoSpeakers).first?.text ?? "", "um")
+check(String(SpeakerAlignment.turns(words: gapWord, spans: twoSpeakers).count), "1", "word in a gap goes to the nearest span")
+let overlapWords = [TimedWord("hi", 2.6, 2.9), TimedWord("yes", 3.8, 4.4)]
+check(SpeakerAlignment.turns(words: overlapWords, spans: twoSpeakers).map { "\($0.speaker)" }.joined(), "12", "most overlap wins (S2 4.0-4.4 > S1 3.8-4.0)")
+
 if failures == 0 {
     print("OK: \(count) checks passed")
     exit(0)

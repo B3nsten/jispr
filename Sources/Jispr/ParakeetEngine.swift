@@ -68,6 +68,7 @@ final class ParakeetEngine: SpeechEngine {
     private var loadTask: Task<AsrManager, Error>?
     private var manager: AsrManager?
     private var accumulator: SampleAccumulator?
+    private var diarizer: OfflineDiarizerManager?
 
     func prewarm() async {
         guard manager == nil, loadTask == nil else { return }
@@ -100,22 +101,73 @@ final class ParakeetEngine: SpeechEngine {
     }
 
     func finish() async throws -> String {
-        guard let manager, let accumulator else { throw Failure.notStarted }
-        self.accumulator = nil
-        let samples = accumulator.drain()
-        let seconds = Double(samples.count) / 16_000
-        guard seconds >= 0.3 else { return "" }
-
+        guard let (manager, samples) = try endSession() else { return "" }
         let started = Date()
         var state = TdtDecoderState.make()
         let result = try await manager.transcribe(samples, decoderState: &state)
-        let text = TextCleanup.clean(result.text, normalizeAllCaps: true, keepCaps: Settings.keepCaps)
-        let took = Date().timeIntervalSince(started)
-        Log.speech.info("Parakeet: \(seconds, format: .fixed(precision: 1), privacy: .public) s audio in \(took, format: .fixed(precision: 2), privacy: .public) s, \(text.count, privacy: .public) chars")
+        let text = clean(result.text)
+        Log.speech.info("Parakeet: \(Self.seconds(samples), format: .fixed(precision: 1), privacy: .public) s audio in \(Date().timeIntervalSince(started), format: .fixed(precision: 2), privacy: .public) s, \(text.count, privacy: .public) chars")
         return text
+    }
+
+    /// Like `finish()`, but the text is split by speaker: `Person 1: …`, `Person 2: …`.
+    /// Whoever speaks first is Person 1. With one speaker the plain text is returned.
+    /// The diarizer models are downloaded once on first use.
+    func finishWithSpeakers() async throws -> String {
+        guard let (manager, samples) = try endSession() else { return "" }
+        let started = Date()
+        var state = TdtDecoderState.make()
+        let result = try await manager.transcribe(samples, decoderState: &state)
+        guard let timings = result.tokenTimings, !timings.isEmpty else {
+            Log.speech.warning("No word timings; transcript without speakers")
+            return clean(result.text)
+        }
+        let words = buildWordTimings(from: timings).map { TimedWord($0.word, $0.startTime, $0.endTime) }
+
+        let diarizer = try await loadDiarizer()
+        let diarization = try await diarizer.process(audio: samples)
+        let spans = diarization.segments.map {
+            SpeakerSpan($0.speakerId, Double($0.startTimeSeconds), Double($0.endTimeSeconds))
+        }
+        let turns = SpeakerAlignment.turns(words: words, spans: spans).map {
+            SpeakerTurn(speaker: $0.speaker, text: clean($0.text))
+        }
+        let speakers = Set(turns.map(\.speaker)).count
+        Log.speech.info("Parakeet: \(Self.seconds(samples), format: .fixed(precision: 1), privacy: .public) s audio in \(Date().timeIntervalSince(started), format: .fixed(precision: 2), privacy: .public) s, \(words.count, privacy: .public) words, \(speakers, privacy: .public) speakers, \(turns.count, privacy: .public) turns")
+        return SpeakerAlignment.format(turns)
     }
 
     func cancel() async {
         accumulator = nil
+    }
+
+    // MARK: - Private
+
+    /// Ends the session. Returns the model and the 16 kHz samples, or nil when the audio is too short.
+    private func endSession() throws -> (AsrManager, [Float])? {
+        guard let manager, let accumulator else { throw Failure.notStarted }
+        self.accumulator = nil
+        let samples = accumulator.drain()
+        guard Self.seconds(samples) >= 0.3 else { return nil }
+        return (manager, samples)
+    }
+
+    private static func seconds(_ samples: [Float]) -> Double {
+        Double(samples.count) / 16_000
+    }
+
+    private func clean(_ text: String) -> String {
+        TextCleanup.clean(text, normalizeAllCaps: true, keepCaps: Settings.keepCaps)
+    }
+
+    /// Speaker diarization ("who spoke when"): pyannote community-1 + WeSpeaker, run by FluidAudio.
+    private func loadDiarizer() async throws -> OfflineDiarizerManager {
+        if let diarizer { return diarizer }
+        Log.speech.info("Loading diarizer models")
+        let diarizer = OfflineDiarizerManager()
+        try await diarizer.prepareModels()
+        self.diarizer = diarizer
+        Log.speech.info("Diarizer ready")
+        return diarizer
     }
 }

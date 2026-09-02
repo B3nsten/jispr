@@ -23,6 +23,16 @@ Pick **Mode → Record to file** in the menu bar. The same keys now record inste
 
 **Transcribe Audio File…** in the menu picks any audio file (starts in Downloads), runs it through the selected engine and writes the text next to it as `.txt` (`meeting_260902_1432.txt`). Finder shows the result. Keys are ignored while it runs. Long files take a moment: Parakeet needs roughly a minute per hour of audio on Apple silicon.
 
+With Parakeet the transcript is split by speaker:
+
+```
+Person 1: Good morning, everyone. Let us start with the budget for next quarter.
+
+Person 2: I disagree, the travel budget is already small.
+```
+
+Whoever speaks first is Person 1. Names are not known. With one speaker you get plain text. The speaker models ([`FluidInference/speaker-diarization-coreml`](https://huggingface.co/FluidInference/speaker-diarization-coreml), 21 MB, pyannote community-1 + WeSpeaker) are downloaded once on the first run. Limits: similar voices can be mixed up, and people talking over each other confuse it. Apple Speech has no speaker labels.
+
 **Mode → Dictate (paste text)** switches back.
 
 ## Speech engines
@@ -89,7 +99,7 @@ Sources/Jispr/
   Recording.swift          Mode (dictate / record), AAC file writer, Downloads naming
   FileTranscription.swift  feed a whole audio file into an engine (menu action and --transcribe)
   SpeechEngine.swift       engine protocol, engine choice (UserDefaults), text tidy
-  ParakeetEngine.swift     Parakeet v2 via FluidAudio, batch at the end
+  ParakeetEngine.swift     Parakeet v2 via FluidAudio, batch at the end; speaker labels for files
   AppleSpeechEngine.swift  SpeechAnalyzer session, streaming, model download
   AudioCapture.swift       AVAudioEngine mic tap + level meter
   BufferConverter.swift    resample mic audio to the model's format
@@ -98,6 +108,7 @@ Sources/Jispr/
 Sources/JisprCore/
   TextCleanup.swift        transcript clean-up (pure, checked by make check)
   FileNaming.swift         meeting_YYMMDD_HHMM names, -2/-3 suffixes (pure, checked)
+  SpeakerAlignment.swift   words + "who spoke when" spans → Person 1 / Person 2 turns (pure, checked)
 Resources/Info.plist       LSUIElement, usage descriptions
 Makefile                   build, bundle, sign, run, install, cert
 scripts/make-signing-cert.sh   one-time local signing certificate
