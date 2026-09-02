@@ -8,7 +8,8 @@ import JisprCore
 /// - double-tap Right Option: start dictating, or start recording to a file
 /// - single tap Right Option while running: stop; paste the text, or save the file
 /// - triple-tap Right Option: switch the mode (the start from the double tap is thrown away)
-/// - Escape while running: abort, nothing is pasted or saved
+/// - Escape while running: abort, nothing is pasted or saved. After a minute of recording the
+///   pill asks first (Discard / Keep); Escape again keeps the recording.
 ///
 /// The menu can also transcribe an audio file (`transcribing`). Keys are ignored meanwhile.
 @MainActor
@@ -28,10 +29,20 @@ final class DictationController {
     private var noticeTask: Task<Void, Never>?
     private var clockTask: Task<Void, Never>?
     private var recording: RecordingWriter?
+    private var recordingStarted: Date?
+    /// The pill is asking "Discard the recording?". The recording goes on meanwhile.
+    private var confirmingAbort = false {
+        didSet { indicator.acceptsClicks = confirmingAbort }
+    }
+
+    /// From this length on, Escape asks before it throws a recording away.
+    static let askBeforeAbortAfter: TimeInterval = 60
 
     init() {
         engine = EngineKind.selected.makeEngine()
         audio.onLevel = { [weak self] level in self?.indicator.update(level: level) }
+        indicator.model.discard = { [weak self] in self?.abort() }
+        indicator.model.keep = { [weak self] in self?.keepRecording() }
         Log.app.info("Engine: \(self.engine.kind.rawValue, privacy: .public)")
         Task { await engine.prewarm() }
     }
@@ -69,10 +80,20 @@ final class DictationController {
     }
 
     /// Escape: abort without pasting or saving. Returns true when the key must not reach the front app.
+    /// A long recording is not thrown away at once: the pill asks first.
     func handleEscape() -> Bool {
         switch state {
-        case .listening, .recording, .preparing: abort(); return true
-        case .idle, .finishing, .transcribing: return false
+        case .recording where confirmingAbort:
+            keepRecording()
+            return true
+        case .recording where recordingElapsed >= Self.askBeforeAbortAfter:
+            askBeforeAbort()
+            return true
+        case .listening, .recording, .preparing:
+            abort()
+            return true
+        case .idle, .finishing, .transcribing:
+            return false
         }
     }
 
@@ -231,6 +252,7 @@ final class DictationController {
                 recording = writer
                 try startCapture(into: writer)
                 state = .recording
+                recordingStarted = Date()
                 indicator.model.elapsed = 0
                 indicator.model.phase = .recording
                 startClock()
@@ -252,6 +274,7 @@ final class DictationController {
     private func finishRecording() {
         guard state == .recording, let writer = recording else { return }
         state = .finishing
+        confirmingAbort = false
         indicator.model.phase = .finishing
         stopClock()
         audio.stop()
@@ -280,11 +303,14 @@ final class DictationController {
         }
     }
 
+    private var recordingElapsed: TimeInterval {
+        recordingStarted.map { Date().timeIntervalSince($0) } ?? 0
+    }
+
     private func startClock() {
-        let started = Date()
         clockTask = Task { [self] in
             while !Task.isCancelled {
-                indicator.model.elapsed = Date().timeIntervalSince(started)
+                indicator.model.elapsed = recordingElapsed
                 try? await Task.sleep(for: .seconds(1))
             }
         }
@@ -293,6 +319,22 @@ final class DictationController {
     private func stopClock() {
         clockTask?.cancel()
         clockTask = nil
+        recordingStarted = nil
+    }
+
+    /// Escape on a long recording: ask in the pill instead of throwing it away.
+    private func askBeforeAbort() {
+        Log.app.info("Escape after \(self.recordingElapsed, format: .fixed(precision: 0), privacy: .public) s of recording: asking first")
+        confirmingAbort = true
+        indicator.model.phase = .confirmAbort
+    }
+
+    /// "Keep": back to recording as if nothing happened.
+    private func keepRecording() {
+        guard state == .recording, confirmingAbort else { return }
+        Log.app.info("Recording kept")
+        confirmingAbort = false
+        indicator.model.phase = .recording
     }
 
     // MARK: Abort and notices
@@ -303,6 +345,7 @@ final class DictationController {
         let wasStarting = startTask != nil
         let wasRecording = state == .recording
         startTask?.cancel()
+        confirmingAbort = false
         stopClock()
         audio.stop()
         feedTask?.cancel()

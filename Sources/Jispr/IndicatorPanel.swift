@@ -2,11 +2,16 @@ import AppKit
 import SwiftUI
 
 /// Small floating pill at the bottom of the screen. Never takes focus.
+/// Mouse clicks pass through it, except while `acceptsClicks` is on (the pill shows buttons).
 @MainActor
 final class IndicatorPanel {
     let model = IndicatorModel()
     private var panel: NSPanel?
     private var smoothedLevel: Float = 0
+
+    var acceptsClicks = false {
+        didSet { panel?.ignoresMouseEvents = !acceptsClicks }
+    }
 
     func show(_ phase: IndicatorModel.Phase) {
         model.phase = phase
@@ -29,7 +34,7 @@ final class IndicatorPanel {
     }
 
     private func makePanel() -> NSPanel {
-        let size = NSSize(width: 320, height: 96)
+        let size = NSSize(width: 480, height: 96)
         let panel = NSPanel(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -41,7 +46,8 @@ final class IndicatorPanel {
         panel.hasShadow = false
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-        panel.ignoresMouseEvents = true
+        panel.ignoresMouseEvents = !acceptsClicks
+        panel.becomesKeyOnlyIfNeeded = true
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.contentView = NSHostingView(rootView: IndicatorView(model: model))

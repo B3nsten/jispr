@@ -20,7 +20,7 @@ Pick **Mode → Record to file** in the menu bar, or triple-tap Right Option. Th
 
 1. **Double-tap Right Option** → recording starts. The pill shows *Recording* with a level meter and a clock. The menu bar icon becomes a record dot.
 2. **Tap Right Option once** → the recording is saved to `~/Downloads/meeting_<seconds>_YYMMDD_HHMM.m4a`, e.g. `meeting_1788442330_260902_1432.m4a`. The number is the exact save time in seconds since 1970 (for calculations); the rest is the local date and 24-hour time (for you). A name clash gets `-2`. AAC, small enough for hours.
-3. **Escape** → abort. The file is thrown away.
+3. **Escape** → abort. The file is thrown away. After one minute of recording the pill asks first: click **Discard**, or **Keep** (Escape again keeps it too). The recording goes on while it asks.
 
 **Transcribe Audio File…** in the menu picks any audio file (starts in Downloads), runs it through the selected engine and writes the text next to it as `.txt` (`meeting_1788442330_260902_1432.txt`). Finder shows the result. Keys are ignored while it runs. Long files take a moment: Parakeet needs roughly a minute per hour of audio on Apple silicon.
 

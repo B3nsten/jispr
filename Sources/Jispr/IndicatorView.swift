@@ -12,13 +12,18 @@ final class IndicatorModel {
         case transcribing(String)
         case saved(String)
         case mode(Mode)
+        /// "Discard the recording?" with two buttons. The recording goes on meanwhile.
+        case confirmAbort
         case error(String)
     }
 
     var phase: Phase = .listening
     var level: Float = 0
-    /// Seconds since the recording started. Shown while `.recording`.
+    /// Seconds since the recording started. Shown while `.recording` and `.confirmAbort`.
     var elapsed: TimeInterval = 0
+    /// The two buttons of `.confirmAbort`.
+    var discard: (() -> Void)?
+    var keep: (() -> Void)?
 }
 
 struct IndicatorView: View {
@@ -52,12 +57,21 @@ struct IndicatorView: View {
             case .mode(let mode):
                 Image(systemName: mode == .record ? "record.circle.fill" : "mic.fill")
                 Text(mode.title)
+            case .confirmAbort:
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
+                Text("Discard \(SpeakerAlignment.relative(model.elapsed)) of recording?").monospacedDigit()
+                Button("Keep") { model.keep?() }
+                    .buttonStyle(.bordered)
+                Button("Discard") { model.discard?() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
             case .error(let message):
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
                 Text(message)
             }
         }
         .font(.system(size: 13, weight: .medium, design: .rounded))
+        .controlSize(.small)
         .foregroundStyle(.white)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
